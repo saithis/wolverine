@@ -28,4 +28,5 @@ public class IncomingMessage
     public byte[] Body { get; set; } = [];
     public string MessageType { get; set; } = string.Empty;
     public string? ReceivedAt { get; set; }
+    public DateTimeOffset? KeepUntil { get; set; }
 }

@@ -5,6 +5,7 @@ using JasperFx.MultiTenancy;
 using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Wolverine.EntityFrameworkCore.Internals;
@@ -18,6 +19,19 @@ public static class WolverineEntityCoreExtensions
 {
     internal const string WolverineEnabled = "WolverineEnabled";
 
+    public static WolverineOptions UseEfCorePersistence<TDbContext>(this WolverineOptions options)
+        where TDbContext : DbContext
+    {
+        options.Services.AddSingleton<IMessageStore>(s => 
+        {
+            var dbContext = s.GetRequiredService<TDbContext>();
+            var runtime = s.GetRequiredService<IWolverineRuntime>();
+            return new EfCoreMessageStore<TDbContext>(dbContext, runtime.DurabilitySettings);
+        });
+        // TODO: Implement EfCoreDeadLetterQueueReplayer<TDbContext> hosted service
+        return options;
+    }
+    
     /// <summary>
     /// </summary>
     /// <param name="services"></param>
@@ -218,13 +232,13 @@ public static class WolverineEntityCoreExtensions
     /// </param>
     /// <returns></returns>
     public static ModelBuilder MapWolverineEnvelopeStorage(this ModelBuilder modelBuilder,
-        string? databaseSchema = null)
+        string? databaseSchema = null, bool addToMigrations = false)
     {
         modelBuilder.Model.AddAnnotation(WolverineEnabled, "true");
-
+            
         modelBuilder.Entity<IncomingMessage>(eb =>
         {
-            eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, x => x.ExcludeFromMigrations());
+            eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, ConditionalMigrationTableBuilder);
 
             eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
             eb.HasKey(x => x.Id);
@@ -237,11 +251,12 @@ public static class WolverineEntityCoreExtensions
             eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
             eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
             eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
+            eb.Property(x => x.KeepUntil).HasColumnName(DatabaseConstants.KeepUntil);
         });
 
         modelBuilder.Entity<OutgoingMessage>(eb =>
         {
-            eb.ToTable(DatabaseConstants.OutgoingTable, databaseSchema, x => x.ExcludeFromMigrations());
+            eb.ToTable(DatabaseConstants.OutgoingTable, databaseSchema, ConditionalMigrationTableBuilder);
             eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
             eb.HasKey(x => x.Id);
 
@@ -255,6 +270,34 @@ public static class WolverineEntityCoreExtensions
             eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
         });
 
+        modelBuilder.Entity<DeadLetterMessage>(eb =>
+        {
+            eb.ToTable(DatabaseConstants.DeadLetterTable, databaseSchema, ConditionalMigrationTableBuilder);
+            eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
+            eb.HasKey(x => x.Id);
+
+            eb.Property(x => x.ExecutionTime).HasColumnName(DatabaseConstants.ExecutionTime).HasDefaultValue(null);
+            eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
+            eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
+            eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
+            eb.Property(x => x.Source).HasColumnName(DatabaseConstants.Source);
+            eb.Property(x => x.ExceptionType).HasColumnName(DatabaseConstants.ExceptionType);
+            eb.Property(x => x.ExceptionMessage).HasColumnName(DatabaseConstants.ExceptionMessage);
+            eb.Property(x => x.SentAt).HasColumnName(DatabaseConstants.SentAt);
+            eb.Property(x => x.Replayable).HasColumnName(DatabaseConstants.Replayable);
+            eb.Property(x => x.Expires).HasColumnName(DatabaseConstants.Expires);
+        });
+        
+        // TODO: add other entities
+
         return modelBuilder;
+        
+        void ConditionalMigrationTableBuilder<TEntity>(TableBuilder<TEntity> tableBuilder) where TEntity : class
+        {
+            if (!addToMigrations)
+            {
+                tableBuilder.ExcludeFromMigrations();
+            }
+        }
     }
 }
