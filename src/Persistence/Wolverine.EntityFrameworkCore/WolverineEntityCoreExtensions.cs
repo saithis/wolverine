@@ -19,14 +19,18 @@ public static class WolverineEntityCoreExtensions
 {
     internal const string WolverineEnabled = "WolverineEnabled";
 
-    public static WolverineOptions UseEfCorePersistence<TDbContext>(this WolverineOptions options)
+    public static WolverineOptions UseEfCorePersistence<TDbContext>(this WolverineOptions options, 
+        Action<EfCoreSettings>? configure = null)
         where TDbContext : DbContext
     {
+        var settings = new EfCoreSettings();
+        configure?.Invoke(settings);
+        
         options.Services.AddSingleton<IMessageStore>(s => 
         {
             var dbContext = s.GetRequiredService<TDbContext>();
             var runtime = s.GetRequiredService<IWolverineRuntime>();
-            return new EfCoreMessageStore<TDbContext>(dbContext, runtime.DurabilitySettings);
+            return new EfCoreMessageStore<TDbContext>(dbContext, runtime.DurabilitySettings, settings);
         });
         // TODO: Implement EfCoreDeadLetterQueueReplayer<TDbContext> hosted service
         return options;

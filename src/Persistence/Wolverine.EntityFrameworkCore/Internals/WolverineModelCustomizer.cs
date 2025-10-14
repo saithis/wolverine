@@ -59,13 +59,6 @@ public class WolverineModelCustomizer : RelationalModelCustomizer
                 .OnDelete(DeleteBehavior.Cascade);
         });
         
-        modelBuilder.Entity<LeadershipLockEntity>(entity =>
-        {
-            entity.HasKey(e => e.LockId);
-            entity.Property(e => e.LockId).HasMaxLength(100);
-            entity.Property(e => e.ServiceName).HasMaxLength(100);
-            entity.HasIndex(e => e.ExpiresAt);
-        });
     }
 }
 

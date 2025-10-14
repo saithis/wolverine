@@ -9,19 +9,21 @@ using Wolverine.Transports;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
-public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, DurabilitySettings durability) 
+public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, DurabilitySettings durability, EfCoreSettings? settings = null) 
     : IMessageStoreWithAgentSupport
     where TDbContext : DbContext
 {
     private IWolverineRuntime? _runtime;
     internal TDbContext DbContext => dbContext;
+    internal EfCoreSettings Settings { get; } = settings ?? new EfCoreSettings();
+    public IAdvisoryLock AdvisoryLock => Settings.AdvisoryLock ?? new NullAdvisoryLock();
 
     public ValueTask DisposeAsync()
     {
         return dbContext.DisposeAsync();
     }
 
-    public MessageStoreRole Role { get; private set; } = MessageStoreRole.Main;
+    public MessageStoreRole Role => Settings.Role;
     
     public Uri Uri { get; private set; } = new("efcore://localhost/wolverine");
     
@@ -40,7 +42,7 @@ public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, Durabi
             Uri = new Uri($"efcore://{dbContext.Database.GetDbConnection().Database}/wolverine");
         }
         
-        Name = $"EfCore-{dbContext.Database.GetDbConnection().Database}";
+        Name = Settings.Name ?? $"EfCore-{dbContext.Database.GetDbConnection().Database}";
     }
 
     public DatabaseDescriptor Describe()
@@ -110,12 +112,12 @@ public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, Durabi
 
     public void PromoteToMain(IWolverineRuntime runtime)
     {
-        Role = MessageStoreRole.Main;
+        Settings.Role = MessageStoreRole.Main;
         Initialize(runtime);
     }
 
     public void DemoteToAncillary()
     {
-        Role = MessageStoreRole.Ancillary;
+        Settings.Role = MessageStoreRole.Ancillary;
     }
 }

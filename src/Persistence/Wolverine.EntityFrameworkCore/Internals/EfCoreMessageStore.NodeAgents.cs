@@ -6,9 +6,6 @@ namespace Wolverine.EntityFrameworkCore.Internals;
 public partial class EfCoreMessageStore<TDbContext> : INodeAgentPersistence
 {
     public INodeAgentPersistence Nodes => this;
-    private string? _currentNodeId;
-    private readonly object _leadershipLock = new object();
-    private bool _hasLeadershipLock = false;
 
     public async Task ClearAllAsync(CancellationToken cancellationToken)
     {
@@ -17,7 +14,6 @@ public partial class EfCoreMessageStore<TDbContext> : INodeAgentPersistence
         await dbContext.Set<AgentRestrictionEntity>().ExecuteDeleteAsync(cancellationToken);
         await dbContext.Set<NodeRecordEntity>().ExecuteDeleteAsync(cancellationToken);
         await dbContext.Set<WolverineNodeEntity>().ExecuteDeleteAsync(cancellationToken);
-        await dbContext.Set<LeadershipLockEntity>().ExecuteDeleteAsync(cancellationToken);
     }
 
     public async Task<int> PersistAsync(WolverineNode node, CancellationToken cancellationToken)
@@ -204,135 +200,16 @@ public partial class EfCoreMessageStore<TDbContext> : INodeAgentPersistence
 
     public bool HasLeadershipLock()
     {
-        lock (_leadershipLock)
-        {
-            return _hasLeadershipLock;
-        }
+        return AdvisoryLock.HasLock(Settings.LeadershipLockId);
     }
 
-    public async Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
+    public Task<bool> TryAttainLeadershipLockAsync(CancellationToken token)
     {
-        if (_runtime == null) return false;
-        
-        var lockId = "wolverine_leadership";
-        var nodeId = _runtime.Options.UniqueNodeId;
-        var serviceName = _runtime.Options.ServiceName;
-        var now = DateTimeOffset.UtcNow;
-        var expiresAt = now.AddMinutes(5); // 5-minute lock
-        
-        try
-        {
-            using var transaction = await dbContext.Database.BeginTransactionAsync(token);
-            
-            try
-            {
-                // Strategy 1: Try to insert new lock (handles case where no lock exists)
-                try
-                {
-                    var newLock = new LeadershipLockEntity
-                    {
-                        LockId = lockId,
-                        NodeId = nodeId,
-                        ServiceName = serviceName,
-                        AcquiredAt = now,
-                        ExpiresAt = expiresAt
-                    };
-                    
-                    dbContext.Set<LeadershipLockEntity>().Add(newLock);
-                    await dbContext.SaveChangesAsync(token);
-                    await transaction.CommitAsync(token);
-                    
-                    lock (_leadershipLock)
-                    {
-                        _hasLeadershipLock = true;
-                        _currentNodeId = nodeId.ToString();
-                    }
-                    return true;
-                }
-                catch (Exception) // Constraint violation - lock already exists
-                {
-                    // Clear the failed entity
-                    dbContext.ChangeTracker.Clear();
-                }
-                
-                // Strategy 2: Try to update existing lock atomically
-                // This uses a WHERE clause to ensure we only update if conditions are met
-                var rowsAffected = await dbContext.Database.ExecuteSqlAsync($@"
-                    UPDATE wolverine_leadership_lock 
-                    SET NodeId = {nodeId}, 
-                        ServiceName = {serviceName}, 
-                        AcquiredAt = {now}, 
-                        ExpiresAt = {expiresAt}
-                    WHERE LockId = {lockId} 
-                    AND (NodeId = {nodeId} OR ExpiresAt < {now})", token);
-                
-                if (rowsAffected > 0)
-                {
-                    await transaction.CommitAsync(token);
-                    
-                    lock (_leadershipLock)
-                    {
-                        _hasLeadershipLock = true;
-                        _currentNodeId = nodeId.ToString();
-                    }
-                    return true;
-                }
-                
-                // Failed to acquire lock - another node owns it and it hasn't expired
-                await transaction.RollbackAsync(token);
-                
-                lock (_leadershipLock)
-                {
-                    _hasLeadershipLock = false;
-                }
-                return false;
-            }
-            catch (Exception)
-            {
-                await transaction.RollbackAsync(token);
-                throw;
-            }
-        }
-        catch (Exception)
-        {
-            // Failed to acquire lock due to database error or concurrency
-            lock (_leadershipLock)
-            {
-                _hasLeadershipLock = false;
-            }
-            return false;
-        }
+        return AdvisoryLock.TryAttainLockAsync(Settings.LeadershipLockId, token);
     }
 
-    public async Task ReleaseLeadershipLockAsync()
+    public Task ReleaseLeadershipLockAsync()
     {
-        if (_runtime == null) return;
-        
-        var lockId = "wolverine_leadership";
-        var nodeId = _runtime.Options.UniqueNodeId;
-        
-        try
-        {
-            // Use atomic delete operation - only delete if we own the lock
-            var rowsAffected = await dbContext.Database.ExecuteSqlAsync($@"
-                DELETE FROM wolverine_leadership_lock 
-                WHERE LockId = {lockId} AND NodeId = {nodeId}");
-            
-            // Note: We don't check rowsAffected because the lock might have already expired
-            // or been taken by another node, which is fine
-        }
-        catch (Exception)
-        {
-            // Ignore errors during release - the lock will expire anyway
-        }
-        finally
-        {
-            // Always clear local state regardless of database operation result
-            lock (_leadershipLock)
-            {
-                _hasLeadershipLock = false;
-                _currentNodeId = null;
-            }
-        }
+        return AdvisoryLock.ReleaseLockAsync(Settings.LeadershipLockId);
     }
 }
