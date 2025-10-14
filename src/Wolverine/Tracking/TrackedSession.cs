@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using JasperFx.CommandLine.TextualDisplays;
 using JasperFx.Core;
 using JasperFx.Core.Reflection;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,6 +29,8 @@ internal class TrackedSession : ITrackedSession
     private bool _executionComplete;
 
     private readonly Stopwatch _stopwatch = new();
+
+    private readonly List<Func<Type, bool>> _ignoreMessageRules = [t => t.CanBeCastTo<IAgentCommand>()];
 
     private TrackingStatus _status = TrackingStatus.Active;
 
@@ -426,7 +429,8 @@ internal class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        if (envelope.Message is IAgentCommand)
+        var messageType = envelope.Message.GetType();
+        if (_ignoreMessageRules.Any(x => x(messageType)))
         {
             return;
         }
@@ -451,7 +455,8 @@ internal class TrackedSession : ITrackedSession
         }
 
         // Ignore these
-        if (envelope.Message is IAgentCommand)
+        var messageType = envelope.Message?.GetType();
+        if (messageType != null && _ignoreMessageRules.Any(x => x(messageType)))
         {
             return;
         }
@@ -522,6 +527,11 @@ internal class TrackedSession : ITrackedSession
         var exceptions = $"Exceptions:\n{_exceptions.Select(x => x.ToString()).Join("\n")}";
 
         return $"{conditions}\n\n{activity}\\{exceptions}";
+    }
+
+    public void IgnoreMessageTypes(Func<Type, bool> filter)
+    {
+        _ignoreMessageRules.Add(filter);
     }
 }
 

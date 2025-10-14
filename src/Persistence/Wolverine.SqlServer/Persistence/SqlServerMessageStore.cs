@@ -50,6 +50,10 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             var storage = typeof(DatabaseSagaSchema<,>).CloseAndBuildAs<IDatabaseSagaSchema>(sagaTableDefinition, _settings, sagaTableDefinition.IdMember.GetMemberType(), sagaTableDefinition.SagaType);
             _sagaStorage = _sagaStorage.AddOrUpdate(sagaTableDefinition.SagaType, storage);
         }
+        
+        // ReSharper disable once VirtualMemberCallInConstructor
+        var descriptor = Describe();
+        Id = new DatabaseId(descriptor.ServerName, descriptor.DatabaseName);
     }
 
     protected override void writeMessageIdArrayQueryList(DbCommandBuilder builder, Guid[] messageIds)
@@ -355,6 +359,8 @@ public class SqlServerMessageStore : MessageDatabase<SqlConnection>
             SchemaOrNamespace = _settings.SchemaName,
             SubjectUri = SubjectUri
         };
+        
+        descriptor.TenantIds.AddRange(TenantIds);
 
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.ApplicationName));
         descriptor.Properties.Add(OptionsValue.Read(builder, x => x.Enlist));

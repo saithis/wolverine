@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Text.Json;
+using JasperFx.Core;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using Wolverine.Configuration;
@@ -30,10 +32,12 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
         IsListener = true;
 
         Mode = EndpointMode.Inline;
+
+        // Just to use the same defaults
+        JsonOptions = new SignalRTransport().JsonOptions;
     }
 
-    public JsonSerializerOptions JsonOptions { get; set; } = new JsonSerializerOptions
-        { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    public JsonSerializerOptions JsonOptions { get; set; }
 
     public Uri SignalRUri { get; }
 
@@ -67,6 +71,11 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
     internal async Task ReceiveAsync(string json)
     {
         if (Receiver == null || _mapper == null) return;
+
+        if (json.IsEmpty())
+        {
+            Logger?.LogError(new ArgumentOutOfRangeException(nameof(json)), "Received empty json into the SignalR client");
+        }
 
         try
         {
@@ -135,6 +144,7 @@ public class SignalRClientEndpoint : Endpoint, IListener, ISender
             throw new InvalidOperationException($"SignalR Client {Uri} is not initialized");
         
         var json = _mapper.WriteToString(envelope);
-        await _connection.InvokeAsync(nameof(WolverineHub.Receive), json);
+
+        await _connection.InvokeAsync(nameof(WolverineHub.ReceiveMessage), json);
     }
 }

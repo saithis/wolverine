@@ -4,13 +4,17 @@ using IntegrationTests;
 using JasperFx;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
+using JasperFx.Core;
 using Marten;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Shouldly;
+using Wolverine.Attributes;
+using Wolverine.ComplianceTests;
 using Wolverine.Configuration;
 using Wolverine.Marten;
 
@@ -34,6 +38,25 @@ public class service_location_assertions
         return services.BuildServiceProvider();
     }
 
+    public interface IServiceGatewayUsingRefit;
+
+    public static void configure_with_always_use_service_locator()
+    {
+        #region sample_always_use_service_location
+
+        var builder = Host.CreateApplicationBuilder();
+        builder.UseWolverine(opts =>
+        {
+            // other configuration
+
+            // Use a service locator for this service w/o forcing the entire
+            // message handler adapter to use a service locator for everything
+            opts.CodeGeneration.AlwaysUseServiceLocationFor<IServiceGatewayUsingRefit>();
+        });
+
+        #endregion
+    }
+
     private async Task<IAlbaHost> buildHost(ServiceProviderSource providerSource, Action<WolverineOptions> configure)
     {
         var builder = WebApplication.CreateBuilder([]);
@@ -42,6 +65,18 @@ public class service_location_assertions
             opts.Discovery.IncludeAssembly(GetType().Assembly);
 
             opts.Services.AddScoped<IThing>(s => new BigThing());
+            
+            opts.IncludeType(typeof(CSP5User));
+            opts.CodeGeneration.AlwaysUseServiceLocationFor<IFlag>();
+
+            opts.Services.AddScoped<IGateway, Gateway>();
+            opts.Services.AddScoped<IFlag>(x =>
+            {
+                var context = x.GetRequiredService<ColorContext>();
+                return context.Color.EqualsIgnoreCase("red") ? new RedFlag() : new GreenFlag();
+            });
+
+            opts.Services.AddSingleton(new ColorContext("Red"));
             
             configure(opts);
         });
@@ -196,6 +231,47 @@ public class service_location_assertions
 
 
     }
+
+    [Theory]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.FromHttpContextRequestServices)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.FromHttpContextRequestServices)]
+    public async Task always_use_service_location_does_not_count_toward_validation(ServiceLocationPolicy policy, ServiceProviderSource source)
+    {
+        await using var host = await buildHost(source, opts =>
+        {
+            opts.ServiceLocationPolicy = policy;
+        });
+
+        CSP5User.Flag = null;
+        
+        await host.InvokeAsync(new CSP5());
+        CSP5User.Flag.ShouldBeOfType<RedFlag>();
+    }
+    
+    [Theory]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.IsolatedAndScoped)]
+    [InlineData(ServiceLocationPolicy.AllowedButWarn, ServiceProviderSource.FromHttpContextRequestServices)]
+    [InlineData(ServiceLocationPolicy.AlwaysAllowed, ServiceProviderSource.FromHttpContextRequestServices)]
+    public async Task always_use_service_location_does_not_count_toward_validation_in_http_endpoint(ServiceLocationPolicy policy, ServiceProviderSource source)
+    {
+        await using var host = await buildHost(source, opts =>
+        {
+            opts.ServiceLocationPolicy = policy;
+        });
+
+        CSP5User.Flag = null;
+
+        await host.Scenario(x =>
+        {
+            x.Post.Json(new CSP5()).ToUrl("/csp5");
+            x.StatusCodeShouldBe(204);
+        });
+        
+        CSP5User.Flag.ShouldBeOfType<RedFlag>();
+    }
 }
 
 public interface IWidget;
@@ -260,5 +336,99 @@ public class RecordingLogger : ILoggerFactory, ILogger
     public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
     {
         Messages.Add(formatter(state, exception));
+    }
+}
+
+public record CSP5;
+
+public static class CSP5User
+{
+    public static IFlag? Flag { get; set; } 
+    
+    [WolverinePost("/csp5")]
+    public static void Handle(CSP5 message, IFlag flag, IGateway gateway)
+    {
+        Flag = flag;
+    }
+}
+
+
+
+public interface IFlag;
+public record ColorContext(string Color);
+
+public record RedFlag : IFlag;
+public record GreenFlag : IFlag;
+
+public interface IGateway;
+public class Gateway : IGateway;
+
+public interface IUserContext
+{
+    public string UserId { get;}
+}
+
+public class UserContext : IUserContext
+{
+    public string UserId { get; set; }
+}
+
+public class UserContextFactory
+{
+    public IUserContext Build(HttpContext context) => new UserContext();
+}
+
+public class MyCustomUserMiddleware(RequestDelegate next)
+{
+    private readonly RequestDelegate _next = next;
+    
+    public async Task InvokeAsync(HttpContext httpContext)
+    {
+        // and whatever else
+        await _next(httpContext);
+    }
+}
+
+public static class SampleServiceLocation
+{
+    public static async Task<int> bootstrap(string[] args)
+    {
+        #region sample_bootstrapping_with_httpcontext_request_services
+
+        var builder = WebApplication.CreateBuilder();
+
+        builder.UseWolverine(opts =>
+        {
+            // more configuration
+        });
+
+        // Just pretend that this IUserContext is being 
+        builder.Services.AddScoped<IUserContext, UserContext>();
+        builder.Services.AddWolverineHttp();
+
+        var app = builder.Build();
+
+        // Custom middleware that is somehow configuring our IUserContext
+        // that might be getting used within 
+        app.UseMiddleware<MyCustomUserMiddleware>();
+        
+        app.MapWolverineEndpoints(opts =>
+        {
+            // Opt into using the shared HttpContext.RequestServices scoped
+            // container any time Wolverine has to use a service locator
+            opts.ServiceProviderSource = ServiceProviderSource.FromHttpContextRequestServices;
+            
+            // OR this is the default behavior to be backwards compatible:
+            opts.ServiceProviderSource = ServiceProviderSource.IsolatedAndScoped;
+            
+            // We're telling Wolverine that the IUserContext should always
+            // be pulled from HttpContext.RequestServices
+            // and this happens regardless of the ServerProviderSource!
+            opts.SourceServiceFromHttpContext<IUserContext>();
+        });
+
+        return await app.RunJasperFxCommands(args);
+
+        #endregion
     }
 }

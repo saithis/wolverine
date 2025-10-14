@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using JasperFx.Core;
 using JasperFx.Resources;
 using Microsoft.AspNetCore.SignalR;
@@ -21,6 +22,13 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
     public SignalRTransport() : base($"{ProtocolName}://wolverine".ToUri(), EndpointRole.Application)
     {
         IsListener = true;
+
+        #region sample_signalr_default_json_configuration
+
+        JsonOptions = new(JsonSerializerOptions.Web) { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+        JsonOptions.Converters.Add(new JsonStringEnumConverter());
+
+        #endregion
     }
 
     protected override ISender CreateSender(IWolverineRuntime runtime)
@@ -63,8 +71,7 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
 
     internal ILogger<SignalRTransport>? Logger { get; set; }
 
-    public JsonSerializerOptions JsonOptions { get; set; } = new JsonSerializerOptions
-        { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    public JsonSerializerOptions JsonOptions { get; set; }
 
     public IReceiver? Receiver { get; private set; }
     
@@ -78,6 +85,10 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
                     "The SignalR Transport has not been initialized. Ensure that there is a WolverineOptions.UseSignalR() call in your configuration");
             }
 
+            if (Logger?.IsEnabled(LogLevel.Debug) ?? false)
+            {
+                Logger.LogDebug("Received JSON from SignalR: {Json} ", json);   
+            }
             
             var envelope = new SignalREnvelope(context, HubContext!);
             _mapper!.MapIncoming(envelope, json);
@@ -154,6 +165,11 @@ public class SignalRTransport : Endpoint, ITransport, IListener, ISender
         var operation = envelope.TopicName ?? SignalRTransport.DefaultOperation;
 
         var json = _mapper!.WriteToString(envelope);
+
+        if (Logger != null && Logger.IsEnabled(LogLevel.Debug))
+        {
+            Logger.LogDebug("Sent JSON via SignalR: {Json}", json);
+        }
 
         return new ValueTask(locator.Find(HubContext!).SendAsync(operation, json));
     }

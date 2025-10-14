@@ -108,7 +108,7 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
     /// </summary>
     /// <param name="numberOfSlots"></param>
     /// <returns></returns>
-    public TSelf ShardListeningByGroupId(ShardSlots numberOfSlots)
+    public TSelf PartitionProcessingByGroupId(PartitionSlots numberOfSlots)
     {
         add(e => e.GroupShardingSlotNumber = numberOfSlots);
         return this.As<TSelf>();
@@ -407,19 +407,4 @@ public class ListenerConfiguration<TSelf, TEndpoint> : DelayedEndpointConfigurat
         add(e => e.MessageType = messageType);
         return this.As<TSelf>();
     }
-}
-
-public enum ProcessingOrder
-{
-    /// <summary>
-    ///     Should the messages be processed in the strict order in which they
-    ///     were received?
-    /// </summary>
-    StrictOrdered,
-
-    /// <summary>
-    ///     Is it okay to allow the local queue to process messages in any order? This
-    ///     may give better throughput
-    /// </summary>
-    UnOrdered
 }

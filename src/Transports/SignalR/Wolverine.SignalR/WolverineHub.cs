@@ -1,15 +1,10 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.DependencyInjection;
-using Wolverine.Runtime;
-using Wolverine.Runtime.Handlers;
-using Wolverine.Runtime.Interop;
 using Wolverine.SignalR.Internals;
-using Wolverine.Transports;
 
 namespace Wolverine.SignalR;
 
 /// <summary>
-/// Base class for Wolverine enabled SignalR Hubs
+///     Base class for Wolverine enabled SignalR Hubs
 /// </summary>
 public class WolverineHub : Hub
 {
@@ -20,7 +15,8 @@ public class WolverineHub : Hub
         _endpoint = endpoint;
     }
 
-    public Task Receive(string json)
+    [HubMethodName("ReceiveMessage")]
+    public Task ReceiveMessage(string json)
     {
         return _endpoint.ReceiveAsync(Context, json);
     }

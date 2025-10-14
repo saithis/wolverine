@@ -80,7 +80,9 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Modular Monoliths', link: '/tutorials/modular-monolith'},
                         {text: 'Event Sourcing and CQRS with Marten', link: '/tutorials/cqrs-with-marten'},
                         {text: 'Railway Programming with Wolverine', link: '/tutorials/railway-programming'},
-                        {text: 'Interoperability with Non-Wolverine Systems', link: '/tutorials/interop'}
+                        {text: 'Interoperability with Non-Wolverine Systems', link: '/tutorials/interop'},
+                        {text: 'Leader Election and Agents', link: '/tutorials/leader-election'},
+                        {text: 'Dealing with Concurrency', link:' /tutorials/concurrency'}
                     ]
                 },
                 {
@@ -165,7 +167,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Dead Letter Queues', link:'/guide/messaging/transports/sqs/deadletterqueues'},
                                         {text: 'Configuring Queues', link:'/guide/messaging/transports/sqs/queues'},
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
-                                        {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'}
+                                        {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'},
+                                        {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'}
                                     ]},
                                 {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
@@ -181,9 +184,12 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
+                                {text: 'SignalR', link: '/guide/messaging/transports/signalr'},
+                                {text: 'Redis', link: '/guide/messaging/transports/redis'},
                                 {text: 'External Database Tables', link: '/guide/messaging/transports/external-tables'}
                             ]
                         },
+                        {text: 'Partitioned Sequential Messaging', link: '/guide/messaging/partitioning'},
                         {text: 'Endpoint Specific Operations', link: '/guide/messaging/endpoint-operations'},
                         {text: 'Broadcast to a Specific Topic', link: '/guide/messaging/broadcast-to-topic'},
                         {text: 'Message Expiration', link: '/guide/messaging/expiration'},

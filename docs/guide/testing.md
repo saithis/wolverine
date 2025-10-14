@@ -8,6 +8,10 @@ See Jeremy's blog post [How Wolverine allows for easier testing](https://jeremyd
 
 Also see [Wolverine Best Practices](/tutorials/best-practices) for other helpful tips.
 
+And this:
+
+@[youtube](ODSAGAllsxw)
+
 ## Integration Testing with Tracked Sessions
 
 ::: tip
@@ -78,7 +82,7 @@ public async Task using_tracked_sessions()
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L120-L136' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L122-L138' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_tracked_session' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The tracked session mechanism utilizes Wolverine's internal instrumentation to "know" when all the outstanding
@@ -130,9 +134,22 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
         // This is actually helpful if you are testing for error handling
         // functionality in your system
         .DoNotAssertOnExceptionsDetected()
+        
+        // Hey, just in case failure acks are getting into your testing session
+        // and you do not care for the tests, tell Wolverine to ignore them
+        .IgnoreFailureAcks()
 
         // Again, this is testing against processes, with another IHost
         .WaitForMessageToBeReceivedAt<LowBalanceDetected>(otherWolverineSystem)
+        
+        // Wolverine does this automatically, but it's sometimes
+        // helpful to tell Wolverine to not track certain message
+        // types during testing. Especially messages originating from
+        // some kind of polling operation
+        .IgnoreMessageType<IAgentCommand>()
+        
+        // Another option
+        .IgnoreMessagesMatchingType(type => type.CanBeCastTo<IAgentCommand>())
 
         // There are many other options as well
         .InvokeMessageAndWaitAsync(debitAccount);
@@ -141,7 +158,7 @@ public async Task using_tracked_sessions_advanced(IHost otherWolverineSystem)
     overdrawn.AccountId.ShouldBe(debitAccount.AccountId);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L138-L179' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L140-L194' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_advanced_tracked_session_usage' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The samples shown above inlcude `Sent` message records, but there are more properties available in the `TrackedSession` object.
@@ -281,7 +298,7 @@ public class When_message_is_sent : IAsyncLifetime
     public async Task DisposeAsync() => await _host.StopAsync();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L203-L311' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L218-L326' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_send_message_on_file_change' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 As you can see, we just have to start our application, attach a tracked session to it, and then wait for the message to be published. This way, we can test the whole process of the application, from the file change to the message publication, in a single test.
@@ -425,7 +442,7 @@ public static IEnumerable<object> Handle(
     yield return new AccountUpdated(account.Id, account.Balance);
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L41-L73' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L43-L75' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_accounthandler_for_testing_examples' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The testing extensions can be seen in action by the following test:
@@ -468,7 +485,7 @@ public void handle_a_debit_that_makes_the_account_have_a_low_balance()
     messages.ShouldHaveNoMessageOfType<AccountOverdrawn>();
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L78-L115' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L80-L117' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_handle_a_debit_that_makes_the_account_have_a_low_balance' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 The supported extension methods so far are in the [TestingExtensions](https://github.com/JasperFx/wolverine/blob/main/src/Wolverine/TestingExtensions.cs) class.
@@ -678,7 +695,7 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L18-L35' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Samples/DocumentationSamples/TestingSupportSamples.cs#L20-L37' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_conditionally_disable_transports' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 I'm not necessarily comfortable with a lot of conditional hosting setup all the time,
