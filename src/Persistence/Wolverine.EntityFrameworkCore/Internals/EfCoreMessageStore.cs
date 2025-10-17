@@ -1,6 +1,6 @@
 ﻿using JasperFx.Descriptors;
 using Microsoft.EntityFrameworkCore;
-using Wolverine.Logging;
+using Weasel.Core;
 using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
@@ -9,40 +9,49 @@ using Wolverine.Transports;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
-public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, DurabilitySettings durability, EfCoreSettings? settings = null) 
-    : IMessageStoreWithAgentSupport
+public partial class EfCoreMessageStore<TDbContext> : IMessageStoreWithAgentSupport
     where TDbContext : DbContext
 {
     private IWolverineRuntime? _runtime;
-    internal TDbContext DbContext => dbContext;
-    internal EfCoreSettings Settings { get; } = settings ?? new EfCoreSettings();
-    public IAdvisoryLock AdvisoryLock => Settings.AdvisoryLock ?? new NullAdvisoryLock();
+    internal TDbContext DbContext => _dbContext;
+    internal EfCoreSettings Settings { get; }
+    private IAdvisoryLock AdvisoryLock => Settings.AdvisoryLock;
+    private readonly TDbContext _dbContext;
+    private readonly DurabilitySettings _durability;
+
+    public EfCoreMessageStore(TDbContext dbContext, DurabilitySettings durability, EfCoreSettings settings)
+    {
+        _dbContext = dbContext;
+        _durability = durability;
+        Settings = settings;
+        
+        Name = Settings.Name ?? $"EfCore-{_dbContext.Database.GetDbConnection().Database}";
+        
+        // Set up the URI based on the database connection
+        var connectionString = _dbContext.Database.GetConnectionString();
+        if (!string.IsNullOrEmpty(connectionString))
+        {
+            Uri = new Uri($"efcore://{_dbContext.Database.GetDbConnection().Database}/wolverine");
+        }
+    }
 
     public ValueTask DisposeAsync()
     {
-        return dbContext.DisposeAsync();
+        return _dbContext.DisposeAsync();
     }
 
     public MessageStoreRole Role => Settings.Role;
-    
-    public Uri Uri { get; private set; } = new("efcore://localhost/wolverine");
+    public List<string> TenantIds { get; } = [];
+
+    public Uri Uri { get; } = new("efcore://localhost/wolverine");
     
     public bool HasDisposed => false; // EF Core handles disposal through the DbContext
 
-    public string Name { get; private set; } = "EfCore";
+    public string Name { get; init; }
     
     public void Initialize(IWolverineRuntime runtime)
     {
         _runtime = runtime;
-        
-        // Set up the URI based on the database connection
-        var connectionString = dbContext.Database.GetConnectionString();
-        if (!string.IsNullOrEmpty(connectionString))
-        {
-            Uri = new Uri($"efcore://{dbContext.Database.GetDbConnection().Database}/wolverine");
-        }
-        
-        Name = Settings.Name ?? $"EfCore-{dbContext.Database.GetDbConnection().Database}";
     }
 
     public DatabaseDescriptor Describe()
@@ -50,7 +59,7 @@ public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, Durabi
         return new DatabaseDescriptor(this)
         {
             Engine = "EntityFrameworkCore",
-            DatabaseName = dbContext.Database.GetDbConnection().Database
+            DatabaseName = _dbContext.Database.GetDbConnection().Database
         };
     }
 
@@ -70,12 +79,12 @@ public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, Durabi
 
     public IAgent BuildAgent(IWolverineRuntime runtime)
     {
-        return new EfCoreDurabilityAgent<TDbContext>(this, runtime, durability);
+        return new EfCoreDurabilityAgent<TDbContext>(this, runtime, _durability);
     }
 
     public async Task<IReadOnlyList<Envelope>> LoadPageOfGloballyOwnedIncomingAsync(Uri listenerAddress, int limit)
     {
-        var incomingMessages = await dbContext.Set<IncomingMessage>()
+        var incomingMessages = await _dbContext.Set<IncomingMessage>()
             .Where(x => x.OwnerId == TransportConstants.AnyNode 
                      && x.Status == EnvelopeStatus.Incoming.ToString() 
                      && x.ReceivedAt == listenerAddress.ToString())
@@ -104,7 +113,7 @@ public partial class EfCoreMessageStore<TDbContext>(TDbContext dbContext, Durabi
 
         var envelopeIds = incoming.Select(x => x.Id).ToArray();
         
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .Where(x => envelopeIds.Contains(x.Id))
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.OwnerId, ownerId));

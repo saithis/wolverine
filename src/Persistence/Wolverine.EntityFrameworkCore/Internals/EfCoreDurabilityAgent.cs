@@ -1,7 +1,6 @@
-using JasperFx.Core;
+using JasperFx;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Wolverine.Persistence.Durability;
 using Wolverine.Runtime;
 using Wolverine.Runtime.Agents;
 using Wolverine.Runtime.Serialization;
@@ -28,17 +27,15 @@ internal class EfCoreDurabilityAgent<TDbContext> : IAgent where TDbContext : DbC
         _settings = settings;
         _logger = runtime.LoggerFactory.CreateLogger<EfCoreDurabilityAgent<TDbContext>>();
         
-        Uri = new Uri($"agent://efcore/durability");
+        Uri = new Uri("agent://efcore/durability");
     }
 
     public Uri Uri { get; }
 
-    public AgentStatus Status { get; private set; } = AgentStatus.Stopped;
+    public AgentStatus Status { get; private set; } = AgentStatus.Running;
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        Status = AgentStatus.Started;
-        
         // Start recovery timer for processing orphaned messages
         var recoveryStart = _settings.ScheduledJobFirstExecution.Add(TimeSpan.FromMilliseconds(new Random().Next(0, 1000)));
         

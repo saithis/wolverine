@@ -11,7 +11,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageOutbox
     // Only called from DurabilityAgent stuff
     public async Task<IReadOnlyList<Envelope>> LoadOutgoingAsync(Uri destination)
     {
-        var outgoing = await dbContext
+        var outgoing = await _dbContext
             .Set<OutgoingMessage>()
             .Where(x => x.Destination == destination.ToString())
             .ToListAsync();
@@ -32,21 +32,21 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageOutbox
         {
             OwnerId = ownerId
         };
-        dbContext.Add(outgoing);
-        await dbContext.SaveChangesAsync();
+        _dbContext.Add(outgoing);
+        await _dbContext.SaveChangesAsync();
     }
 
     public async Task DeleteOutgoingAsync(Envelope[] envelopes)
     {
         var ids = envelopes.Select(x => x.Id).ToArray();
-        await dbContext.Set<OutgoingMessage>()
+        await _dbContext.Set<OutgoingMessage>()
             .Where(x => ids.Contains(x.Id))
             .ExecuteDeleteAsync();
     }
 
     public async Task DeleteOutgoingAsync(Envelope envelope)
     {
-        await dbContext.Set<OutgoingMessage>()
+        await _dbContext.Set<OutgoingMessage>()
             .Where(x => x.Id == envelope.Id)
             .ExecuteDeleteAsync();
     }
@@ -57,7 +57,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageOutbox
         await DeleteOutgoingAsync(discards);
         
         var reassignIds = reassigned.Select(x => x.Id).ToArray();
-        await dbContext.Set<OutgoingMessage>()
+        await _dbContext.Set<OutgoingMessage>()
             .Where(x => reassignIds.Contains(x.Id))
             .ExecuteUpdateAsync(setters => 
                 setters.SetProperty(entity => entity.OwnerId, nodeId));

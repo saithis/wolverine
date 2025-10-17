@@ -13,9 +13,9 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
     public async Task ClearAllAsync()
     {
         // Clear all message tables
-        await dbContext.Set<IncomingMessage>().ExecuteDeleteAsync();
-        await dbContext.Set<OutgoingMessage>().ExecuteDeleteAsync();
-        await dbContext.Set<DeadLetterMessage>().ExecuteDeleteAsync();
+        await _dbContext.Set<IncomingMessage>().ExecuteDeleteAsync();
+        await _dbContext.Set<OutgoingMessage>().ExecuteDeleteAsync();
+        await _dbContext.Set<DeadLetterMessage>().ExecuteDeleteAsync();
     }
 
     public Task RebuildAsync()
@@ -30,7 +30,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
         var counts = new PersistedCounts();
 
         // Count incoming messages by status
-        var incomingCounts = await dbContext.Set<IncomingMessage>()
+        var incomingCounts = await _dbContext.Set<IncomingMessage>()
             .GroupBy(x => x.Status)
             .Select(g => new { Status = g.Key, Count = g.Count() })
             .ToListAsync();
@@ -52,17 +52,17 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
         }
 
         // Count outgoing messages
-        counts.Outgoing = await dbContext.Set<OutgoingMessage>().CountAsync();
+        counts.Outgoing = await _dbContext.Set<OutgoingMessage>().CountAsync();
 
         // Count dead letter messages
-        counts.DeadLetter = await dbContext.Set<DeadLetterMessage>().CountAsync();
+        counts.DeadLetter = await _dbContext.Set<DeadLetterMessage>().CountAsync();
 
         return counts;
     }
 
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
-        var incomingMessages = await dbContext.Set<IncomingMessage>().ToListAsync();
+        var incomingMessages = await _dbContext.Set<IncomingMessage>().ToListAsync();
 
         return incomingMessages.Select(im =>
         {
@@ -81,7 +81,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
 
     public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
-        var outgoingMessages = await dbContext.Set<OutgoingMessage>().ToListAsync();
+        var outgoingMessages = await _dbContext.Set<OutgoingMessage>().ToListAsync();
 
         return outgoingMessages.Select(om =>
         {
@@ -97,12 +97,12 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
     public async Task ReleaseAllOwnershipAsync()
     {
         // Release ownership of all incoming messages by setting OwnerId to AnyNode
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.OwnerId, TransportConstants.AnyNode));
 
         // Release ownership of all outgoing messages by setting OwnerId to AnyNode  
-        await dbContext.Set<OutgoingMessage>()
+        await _dbContext.Set<OutgoingMessage>()
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.OwnerId, TransportConstants.AnyNode));
     }
@@ -110,13 +110,13 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
     public async Task ReleaseAllOwnershipAsync(int ownerId)
     {
         // Release ownership of incoming messages for a specific owner
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .Where(x => x.OwnerId == ownerId)
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.OwnerId, TransportConstants.AnyNode));
 
         // Release ownership of outgoing messages for a specific owner
-        await dbContext.Set<OutgoingMessage>()
+        await _dbContext.Set<OutgoingMessage>()
             .Where(x => x.OwnerId == ownerId)
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.OwnerId, TransportConstants.AnyNode));
@@ -127,7 +127,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
         // Simple connectivity check - try to execute a basic query
         try
         {
-            await dbContext.Database.CanConnectAsync(token);
+            await _dbContext.Database.CanConnectAsync(token);
         }
         catch (Exception ex)
         {
@@ -138,6 +138,6 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
     public async Task MigrateAsync()
     {
         // Apply any pending migrations to bring the database up to date
-        await dbContext.Database.MigrateAsync();
+        await _dbContext.Database.MigrateAsync();
     }
 }

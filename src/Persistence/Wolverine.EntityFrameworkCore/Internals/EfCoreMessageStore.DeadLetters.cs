@@ -13,7 +13,7 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
     
     private IQueryable<DeadLetterMessage> BuildDeadLetterQuery(DeadLetterEnvelopeQuery query)
     {
-        var queryable = dbContext.Set<DeadLetterMessage>().AsQueryable();
+        var queryable = _dbContext.Set<DeadLetterMessage>().AsQueryable();
 
         // Handle specific message IDs first (takes precedence)
         if (query.MessageIds.Length > 0)
@@ -57,7 +57,7 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
     
     public async Task<DeadLetterEnvelope?> DeadLetterEnvelopeByIdAsync(Guid id, string? tenantId = null)
     {
-        var deadLetterMessage = await dbContext.Set<DeadLetterMessage>()
+        var deadLetterMessage = await _dbContext.Set<DeadLetterMessage>()
             .Where(x => x.Id == id)
             .FirstOrDefaultAsync();
 
@@ -66,7 +66,7 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
 
     public async Task<IReadOnlyList<DeadLetterQueueCount>> SummarizeAllAsync(string serviceName, TimeRange range, CancellationToken token)
     {
-        var query = dbContext.Set<DeadLetterMessage>().AsQueryable();
+        var query = _dbContext.Set<DeadLetterMessage>().AsQueryable();
 
         // Apply time range filters
         if (range.From.HasValue)
@@ -141,7 +141,7 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
         if (deadLetterMessages.Count == 0)
             return;
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(token);
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(token);
         try
         {
             // Convert dead letter messages back to incoming messages
@@ -156,13 +156,13 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
                 envelope.ScheduledTime = null; // Will be processed immediately
 
                 var incomingMessage = new IncomingMessage(envelope);
-                dbContext.Add(incomingMessage);
+                _dbContext.Add(incomingMessage);
             }
 
             // Delete the dead letter messages
             await queryable.ExecuteDeleteAsync(token);
 
-            await dbContext.SaveChangesAsync(token);
+            await _dbContext.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
         }
         catch

@@ -1,3 +1,4 @@
+using Weasel.Core;
 using Wolverine.Persistence.Durability;
 
 namespace Wolverine.EntityFrameworkCore;
@@ -9,16 +10,15 @@ public class EfCoreSettings
 {
     /// <summary>
     /// The advisory lock implementation to use for distributed locking.
-    /// If null, a no-op implementation will be used.
     /// </summary>
-    public IAdvisoryLock? AdvisoryLock { get; set; }
+    public IAdvisoryLock? AdvisoryLock { get; set; } // TODO: can we make this optional for storage types that support distributed locks?
     
     /// <summary>
     /// The lock ID to use for leadership election. Default is 12000.
     /// Change this to prevent collisions between different applications
     /// using the same database.
     /// </summary>
-    public int LeadershipLockId { get; set; } = 12000;
+    public int LeadershipLockId { get; set; } = 12000; // TODO: is this fine like this? PG generates this from the schewma name, can we do something similar for ef core?
     
     /// <summary>
     /// The role of this message store. Default is Main.
@@ -31,16 +31,3 @@ public class EfCoreSettings
     public string? Name { get; set; }
 }
 
-/// <summary>
-/// No-op implementation of IAdvisoryLock for when no distributed locking is needed
-/// </summary>
-internal class NullAdvisoryLock : IAdvisoryLock
-{
-    public bool HasLock(int lockId) => false;
-
-    public Task<bool> TryAttainLockAsync(int lockId, CancellationToken token) => Task.FromResult(false);
-
-    public Task ReleaseLockAsync(int lockId) => Task.CompletedTask;
-
-    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-}

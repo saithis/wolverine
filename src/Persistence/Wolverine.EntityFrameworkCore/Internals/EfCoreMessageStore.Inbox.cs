@@ -11,7 +11,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
     
     public async Task ScheduleExecutionAsync(Envelope envelope)
     {
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .Where(x => x.Id == envelope.Id && x.ReceivedAt == envelope.Destination!.ToString())
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.ExecutionTime, envelope.ScheduledTime!.Value)
@@ -22,11 +22,11 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
 
     public async Task MoveToDeadLetterStorageAsync(Envelope envelope, Exception? exception)
     {
-        await using var transaction = await dbContext.Database.BeginTransactionAsync();
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync();
         try
         {
             // Delete the incoming message
-            await dbContext.Set<IncomingMessage>()
+            await _dbContext.Set<IncomingMessage>()
                 .Where(x => x.Id == envelope.Id && x.ReceivedAt == envelope.Destination!.ToString())
                 .ExecuteDeleteAsync();
 
@@ -37,13 +37,13 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
             {
                 dlq.Expires = envelope.DeliverBy.Value;
             }
-            else if (durability.DeadLetterQueueExpirationEnabled)
+            else if (_durability.DeadLetterQueueExpirationEnabled)
             {
-                dlq.Expires = DateTimeOffset.UtcNow.Add(durability.DeadLetterQueueExpiration);
+                dlq.Expires = DateTimeOffset.UtcNow.Add(_durability.DeadLetterQueueExpiration);
             }
 
-            dbContext.Add(dlq);
-            await dbContext.SaveChangesAsync();
+            _dbContext.Add(dlq);
+            await _dbContext.SaveChangesAsync();
             
             await transaction.CommitAsync();
         }
@@ -56,7 +56,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
 
     public async Task IncrementIncomingEnvelopeAttemptsAsync(Envelope envelope)
     {
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .Where(x => x.Id == envelope.Id)
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.Attempts, envelope.Attempts));
@@ -67,8 +67,8 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
         try
         {
             var incoming = new IncomingMessage(envelope);
-            dbContext.Add(incoming);
-            await dbContext.SaveChangesAsync();
+            _dbContext.Add(incoming);
+            await _dbContext.SaveChangesAsync();
         }
         catch (DbUpdateException e)
         {
@@ -139,12 +139,12 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
         foreach (var envelope in envelopes)
         {
             var incoming = new IncomingMessage(envelope);
-            dbContext.Add(incoming);
+            _dbContext.Add(incoming);
         }
 
         // It's okay if it does fail here with the duplicate detection, because that
         // will force the DurableReceiver to try envelope at a time to get at the actual differences
-        await dbContext.SaveChangesAsync();
+        await _dbContext.SaveChangesAsync();
     }
 
     public Task RescheduleExistingEnvelopeForRetryAsync(Envelope envelope)
@@ -157,9 +157,9 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(Envelope envelope)
     {
-        var expirationTime = DateTimeOffset.UtcNow.Add(durability.KeepAfterMessageHandling);
+        var expirationTime = DateTimeOffset.UtcNow.Add(_durability.KeepAfterMessageHandling);
         
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .Where(x => x.Id == envelope.Id && x.ReceivedAt == envelope.Destination!.ToString())
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.KeepUntil, expirationTime)
@@ -168,11 +168,11 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
 
     public async Task MarkIncomingEnvelopeAsHandledAsync(IReadOnlyList<Envelope> envelopes)
     {
-        var expirationTime = DateTimeOffset.UtcNow.Add(durability.KeepAfterMessageHandling);
+        var expirationTime = DateTimeOffset.UtcNow.Add(_durability.KeepAfterMessageHandling);
         
         var ids = envelopes.Select(x => x.Id).ToList();
         var idsWithDestinations = envelopes.Select(x => $"{x.Id}|{x.Destination}").ToList();
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .Where(x => ids.Contains(x.Id))
             .Where(x => idsWithDestinations.Contains($"{x.Id}|{x.ReceivedAt}"))
             .ExecuteUpdateAsync(setter => setter
@@ -182,7 +182,7 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageInbox
 
     public async Task ReleaseIncomingAsync(int ownerId, Uri receivedAt)
     {
-        await dbContext.Set<IncomingMessage>()
+        await _dbContext.Set<IncomingMessage>()
             .Where(x => x.OwnerId == ownerId && x.ReceivedAt == receivedAt.ToString())
             .ExecuteUpdateAsync(setter => setter
                 .SetProperty(x => x.OwnerId, 0));

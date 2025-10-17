@@ -19,14 +19,14 @@ public static class WolverineEntityCoreExtensions
 {
     internal const string WolverineEnabled = "WolverineEnabled";
 
-    public static WolverineOptions UseEfCorePersistence<TDbContext>(this WolverineOptions options, 
+    public static WolverineOptions UseEfCorePersistence<TDbContext>(this WolverineOptions options,
         Action<EfCoreSettings>? configure = null)
         where TDbContext : DbContext
     {
         var settings = new EfCoreSettings();
         configure?.Invoke(settings);
-        
-        options.Services.AddSingleton<IMessageStore>(s => 
+
+        options.Services.AddSingleton<IMessageStore>(s =>
         {
             var dbContext = s.GetRequiredService<TDbContext>();
             var runtime = s.GetRequiredService<IWolverineRuntime>();
@@ -35,7 +35,7 @@ public static class WolverineEntityCoreExtensions
         // TODO: Implement EfCoreDeadLetterQueueReplayer<TDbContext> hosted service
         return options;
     }
-    
+
     /// <summary>
     /// </summary>
     /// <param name="services"></param>
@@ -74,10 +74,10 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, ConnectionString, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+
         // For code generation
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
-        
+
         // STRICTLY FOR EF CORE MIGRATIONS!!!!
         services.AddScoped<T>(s =>
         {
@@ -89,7 +89,7 @@ public static class WolverineEntityCoreExtensions
             var builder = s.GetRequiredService<IDbContextBuilder<T>>();
             return builder.BuildOptionsForMain();
         });
-        
+
         services.AddSingleton<IDbContextBuilder<T>>(s =>
         {
             var store = s.GetRequiredService<IMessageStore>();
@@ -116,7 +116,7 @@ public static class WolverineEntityCoreExtensions
 
         return services;
     }
-    
+
     /// <summary>
     /// Register a DbContext type that should use the separately configured Wolverine managed multi-tenancy
     /// for separate databases per tenant using DbDataSource. This option is necessary when using EF Core *with*
@@ -132,10 +132,10 @@ public static class WolverineEntityCoreExtensions
         Action<DbContextOptionsBuilder<T>, DbDataSource, TenantId> dbContextConfiguration, AutoCreate autoCreate = AutoCreate.None) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+
         // For code generation
         services.AddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence<T>>();
-        
+
         // STRICTLY FOR EF CORE MIGRATIONS!!!!
         services.AddScoped<T>(s =>
         {
@@ -147,7 +147,7 @@ public static class WolverineEntityCoreExtensions
             var builder = s.GetRequiredService<IDbContextBuilder<T>>();
             return builder.BuildOptionsForMain();
         });
-        
+
         services.AddSingleton<IDbContextBuilder<T>>(s =>
         {
             var store = s.GetRequiredService<IMessageStore>();
@@ -175,7 +175,7 @@ public static class WolverineEntityCoreExtensions
     private static IServiceCollection addDbContextWithWolverineIntegration<T>(IServiceCollection services, Action<IServiceProvider, DbContextOptionsBuilder> configure, string? wolverineDatabaseSchema = null) where T : DbContext
     {
         services.TryAddSingleton<IDbContextOutboxFactory, DbContextOutboxFactory>();
-        
+
         services.AddDbContext<T>((s, b) =>
         {
             configure(s, b);
@@ -183,7 +183,7 @@ public static class WolverineEntityCoreExtensions
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
-        
+
         services.TryAddScoped(typeof(IDbContextOutbox<>), typeof(DbContextOutbox<>));
         services.TryAddScoped<IDbContextOutbox, DbContextOutbox>();
 
@@ -210,7 +210,7 @@ public static class WolverineEntityCoreExtensions
                 throw;
             }
         }
-        
+
         options.Include<EntityFrameworkCoreBackedPersistence>();
     }
 
@@ -239,22 +239,22 @@ public static class WolverineEntityCoreExtensions
         string? databaseSchema = null, bool addToMigrations = false)
     {
         modelBuilder.Model.AddAnnotation(WolverineEnabled, "true");
-            
+
         modelBuilder.Entity<IncomingMessage>(eb =>
         {
             eb.ToTable(DatabaseConstants.IncomingTable, databaseSchema, ConditionalMigrationTableBuilder);
 
             eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
             eb.HasKey(x => x.Id);
+            // TODO: for MessageIdentity.IdAndDestination the PK should include ReceivedAt
 
-
-            eb.Property(x => x.Status).HasColumnName(DatabaseConstants.Status).IsRequired();
+            eb.Property(x => x.Status).HasColumnName(DatabaseConstants.Status).IsRequired().HasMaxLength(25);
             eb.Property(x => x.OwnerId).HasColumnName(DatabaseConstants.OwnerId).IsRequired();
             eb.Property(x => x.ExecutionTime).HasColumnName(DatabaseConstants.ExecutionTime).HasDefaultValue(null);
-            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts).HasDefaultValue(0);
+            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts).IsRequired().HasDefaultValue(0); // TODO: This is nullable in sql server native persistance... why?
             eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
-            eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
-            eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
+            eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired().HasMaxLength(250);
+            eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt).IsRequired().HasMaxLength(250);
             eb.Property(x => x.KeepUntil).HasColumnName(DatabaseConstants.KeepUntil);
         });
 
@@ -265,13 +265,13 @@ public static class WolverineEntityCoreExtensions
             eb.HasKey(x => x.Id);
 
             eb.Property(x => x.OwnerId).HasColumnName(DatabaseConstants.OwnerId).IsRequired();
-            eb.Property(x => x.Destination).HasColumnName(DatabaseConstants.Destination).IsRequired();
+            eb.Property(x => x.Destination).HasColumnName(DatabaseConstants.Destination).IsRequired().HasMaxLength(250);
             eb.Property(x => x.DeliverBy).HasColumnName(DatabaseConstants.DeliverBy);
 
             eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
-            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts).HasDefaultValue(0);
+            eb.Property(x => x.Attempts).HasColumnName(DatabaseConstants.Attempts).IsRequired().HasDefaultValue(0); // TODO: This is nullable in sql server native persistance... why?
 
-            eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
+            eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired().HasMaxLength(250);
         });
 
         modelBuilder.Entity<DeadLetterMessage>(eb =>
@@ -279,23 +279,22 @@ public static class WolverineEntityCoreExtensions
             eb.ToTable(DatabaseConstants.DeadLetterTable, databaseSchema, ConditionalMigrationTableBuilder);
             eb.Property(x => x.Id).HasColumnName(DatabaseConstants.Id);
             eb.HasKey(x => x.Id);
+            // TODO: for MessageIdentity.IdAndDestination the PK should include ReceivedAt. Can we solve this without conditional schema?
 
             eb.Property(x => x.ExecutionTime).HasColumnName(DatabaseConstants.ExecutionTime).HasDefaultValue(null);
             eb.Property(x => x.Body).HasColumnName(DatabaseConstants.Body).IsRequired();
-            eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired();
-            eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt);
-            eb.Property(x => x.Source).HasColumnName(DatabaseConstants.Source);
+            eb.Property(x => x.MessageType).HasColumnName(DatabaseConstants.MessageType).IsRequired().HasMaxLength(250);
+            eb.Property(x => x.ReceivedAt).HasColumnName(DatabaseConstants.ReceivedAt).IsRequired().HasMaxLength(250);
+            eb.Property(x => x.Source).HasColumnName(DatabaseConstants.Source).HasMaxLength(250);
             eb.Property(x => x.ExceptionType).HasColumnName(DatabaseConstants.ExceptionType);
             eb.Property(x => x.ExceptionMessage).HasColumnName(DatabaseConstants.ExceptionMessage);
             eb.Property(x => x.SentAt).HasColumnName(DatabaseConstants.SentAt);
             eb.Property(x => x.Replayable).HasColumnName(DatabaseConstants.Replayable);
             eb.Property(x => x.Expires).HasColumnName(DatabaseConstants.Expires);
         });
-        
-        // TODO: add other entities
 
         return modelBuilder;
-        
+
         void ConditionalMigrationTableBuilder<TEntity>(TableBuilder<TEntity> tableBuilder) where TEntity : class
         {
             if (!addToMigrations)
