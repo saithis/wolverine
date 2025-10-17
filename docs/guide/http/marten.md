@@ -11,6 +11,15 @@ dotnet add package WolverineFx.Http.Marten
 
 ## Passing Marten Documents to Endpoint Parameters
 
+::: tip
+The `[Document]` attribute is still valid, but it's the exact same behavior as the generalized
+`[Entity]` attribute that is supported by message handlers as well.
+:::
+
+::: info
+Strong typed identifiers are supported for this usage as of Wolverine 5.0
+:::
+
 Consider this very common use case, you have an HTTP endpoint that needs to work on a Marten document that will
 be loaded using the value of one of the route arguments as that document's identity. In a long hand way, that could
 look like this:
@@ -102,6 +111,10 @@ The http endpoints can play inside the full "critter stack" combination with [Ma
 support for Event Sourcing and CQRS](/guide/durability/marten/event-sourcing). Originally this has been done
 by just mimicking the command handler mechanism and having all the inputs come in through the request body (aggregate id, version).
 Wolverine 1.10 added a more HTTP-centric approach using route arguments. 
+
+Because folks always want to insert strong typed identifiers in every possible nook and cranny of their application code,
+Wolverine 5.0 introduced support for using these custom value types as the stream and/or aggregate identity
+in all usages of the aggregate handler workflow with Wolverine.HTTP.
 
 ### Using Route Arguments
 

@@ -1,7 +1,7 @@
 # Aggregate Handlers and Event Sourcing
 
 ::: tip
-Only use the "aggregate handler workflow" is you are wanting to potentially write new events to an existing event stream. If all you
+Only use the "aggregate handler workflow" if you are wanting to potentially write new events to an existing event stream. If all you
 need in a message handler or HTTP endpoint is a read-only copy of an event streamed aggregate from Marten, use the `[ReadAggregate]` attribute
 instead that has a little bit lighter weight runtime within Marten.
 :::
@@ -561,7 +561,7 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L144-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L145-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 ## Forwarding Events
@@ -772,7 +772,7 @@ public static string GetLetter2([ReadAggregate(Required = false)] LetterAggregat
 [WolverineGet("/letters3/{id}")]
 public static LetterAggregate GetLetter3([ReadAggregate(OnMissing = OnMissing.ProblemDetailsWith404)] LetterAggregate letters) => letters;
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L144-L163' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/reacting_to_read_aggregate.cs#L145-L164' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_read_aggregate_fine_grained_validation_control' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 There is also an option with `OnMissing` to throw a `RequiredDataMissingException` exception if a required data element
@@ -904,3 +904,124 @@ public class when_transfering_money
 ```
 <sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/Wolverine.Http.Tests/Marten/working_against_multiple_streams.cs#L105-L132' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_when_transfering_money' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Strong Typed Identifiers <Badge type="tip" text="5.0" />
+
+If you're so inclined, you can use strong typed identifiers from tools like  [Vogen](https://github.com/SteveDunn/Vogen) and [StronglyTypedId](https://github.com/andrewlock/StronglyTypedId)
+within the "Aggregate Handler Workflow." You can also use hand rolled value types that wrap either `Guid` or `string`
+depending on your Marten event store configuration (`StreamIdentity`) as long as it conforms to [Marten's
+own rules about value type identifiers](https://martendb.io/documents/identity.html#strong-typed-identifiers).
+
+For a message handler, let's start with this example identifier type and aggregate from the Wolverine tests:
+
+<!-- snippet: sample_strong_typed_identifier_with_aggregate -->
+<a id='snippet-sample_strong_typed_identifier_with_aggregate'></a>
+```cs
+[StronglyTypedId(Template.Guid)]
+public readonly partial struct LetterId;
+
+public class StrongLetterAggregate
+{
+    public StrongLetterAggregate()
+    {
+    }
+
+    public LetterId Id { get; set; }
+
+    public int ACount { get; set; }
+    public int BCount { get; set; }
+    public int CCount { get; set; }
+    public int DCount { get; set; }
+
+    public void Apply(AEvent _) => ACount++;
+    public void Apply(BEvent _) => BCount++;
+    public void Apply(CEvent _) => CCount++;
+    public void Apply(DEvent _) => DCount++;
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L185-L209' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_strong_typed_identifier_with_aggregate' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And now let's use that identifier type in message handlers:
+
+<!-- snippet: sample_using_strong_typed_identifier_with_aggregate_handler_workflow -->
+<a id='snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow'></a>
+```cs
+public record IncrementStrongA(LetterId Id);
+
+public record AddFrom(LetterId Id1, LetterId Id2);
+
+public record IncrementBOnBoth(LetterId Id1, LetterId Id2);
+
+public record FetchCounts(LetterId Id);
+
+public static class StrongLetterHandler
+{
+    public static StrongLetterAggregate Handle(FetchCounts counts,
+        [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
+
+    public static AEvent Handle(IncrementStrongA command, [WriteAggregate] StrongLetterAggregate aggregate)
+    {
+        return new();
+    }
+
+    public static void Handle(
+        IncrementBOnBoth command,
+        [WriteAggregate(nameof(IncrementBOnBoth.Id1))] IEventStream<StrongLetterAggregate> stream1,
+        [WriteAggregate(nameof(IncrementBOnBoth.Id2))] IEventStream<StrongLetterAggregate> stream2
+    )
+    {
+        stream1.AppendOne(new BEvent());
+        stream2.AppendOne(new BEvent());
+    }
+
+    public static IEnumerable<object> Handle(
+        AddFrom command,
+        [WriteAggregate(nameof(AddFrom.Id1))] StrongLetterAggregate _,
+        [ReadAggregate(nameof(AddFrom.Id2))] StrongLetterAggregate readOnly)
+    {
+        for (int i = 0; i < readOnly.ACount; i++)
+        {
+            yield return new AEvent();
+        }
+        
+        for (int i = 0; i < readOnly.BCount; i++)
+        {
+            yield return new BEvent();
+        }
+        
+        for (int i = 0; i < readOnly.CCount; i++)
+        {
+            yield return new CEvent();
+        }
+        
+        for (int i = 0; i < readOnly.DCount; i++)
+        {
+            yield return new DEvent();
+        }
+    }
+}
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Persistence/MartenTests/AggregateHandlerWorkflow/strong_named_identifiers.cs#L124-L181' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_identifier_with_aggregate_handler_workflow' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+And also in some of the equivalent Wolverine.HTTP endpoints:
+
+<!-- snippet: sample_using_strong_typed_id_as_route_argument -->
+<a id='snippet-sample_using_strong_typed_id_as_route_argument'></a>
+```cs
+[WolverineGet("/sti/aggregate/longhand/{id}")]
+public static ValueTask<StrongLetterAggregate> Handle2(LetterId id, IDocumentSession session) =>
+    session.Events.FetchLatest<StrongLetterAggregate>(id.Value);
+
+// This is an equivalent to the endpoint above 
+[WolverineGet("/sti/aggregate/{id}")]
+public static StrongLetterAggregate Handle(
+    [ReadAggregate] StrongLetterAggregate aggregate) => aggregate;
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Http/WolverineWebApi/Marten/StrongTypedIdentifiers.cs#L11-L22' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_strong_typed_id_as_route_argument' title='Start of snippet'>anchor</a></sup>
+<!-- endSnippet -->
+
+
+tools do this for you, and value types generated by these tools are
+legal route argument variables for Wolverine.HTTP now. 
