@@ -51,7 +51,7 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
         {
             queryable = queryable.Where(x => x.ReceivedAt == query.ReceivedAt);
         }
-
+        
         return queryable;
     }
     
@@ -109,7 +109,7 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
 
         // Apply pagination
         var pagedQuery = queryable
-            .OrderBy(x => x.SentAt)
+            .OrderBy(x => x.ExecutionTime)
             .Skip(query.PageNumber * query.PageSize)
             .Take(query.PageSize);
 
@@ -134,41 +134,7 @@ public partial class EfCoreMessageStore<TDbContext> : IDeadLetters
     public async Task ReplayAsync(DeadLetterEnvelopeQuery query, CancellationToken token)
     {
         var queryable = BuildDeadLetterQuery(query);
-
-        // Get the dead letter messages to replay
-        var deadLetterMessages = await queryable.ToListAsync(token);
-
-        if (deadLetterMessages.Count == 0)
-            return;
-
-        await using var transaction = await _dbContext.Database.BeginTransactionAsync(token);
-        try
-        {
-            // Convert dead letter messages back to incoming messages
-            foreach (var dlm in deadLetterMessages)
-            {
-                var envelope = EnvelopeSerializer.Deserialize(dlm.Body);
-                
-                // Reset envelope properties for replay
-                envelope.Status = EnvelopeStatus.Incoming;
-                envelope.OwnerId = TransportConstants.AnyNode;
-                envelope.Attempts = 0;
-                envelope.ScheduledTime = null; // Will be processed immediately
-
-                var incomingMessage = new IncomingMessage(envelope);
-                _dbContext.Add(incomingMessage);
-            }
-
-            // Delete the dead letter messages
-            await queryable.ExecuteDeleteAsync(token);
-
-            await _dbContext.SaveChangesAsync(token);
-            await transaction.CommitAsync(token);
-        }
-        catch
-        {
-            await transaction.RollbackAsync(token);
-            throw;
-        }
+        await queryable.ExecuteUpdateAsync(setter => setter
+            .SetProperty(x => x.Replayable, true), token);
     }
 }

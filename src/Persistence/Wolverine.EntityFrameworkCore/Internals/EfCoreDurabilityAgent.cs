@@ -45,6 +45,7 @@ internal class EfCoreDurabilityAgent<TDbContext> : IAgent where TDbContext : DbC
             {
                 await RecoverIncomingMessagesAsync();
                 await RecoverOutgoingMessagesAsync();
+                await moveReplayableErrorMessagesToIncomingOperationAsync();
             }
             catch (Exception ex)
             {
@@ -150,6 +151,46 @@ internal class EfCoreDurabilityAgent<TDbContext> : IAgent where TDbContext : DbC
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error recovering outgoing messages");
+        }
+    }
+
+    private async Task moveReplayableErrorMessagesToIncomingOperationAsync()
+    {
+        try
+        {
+            var dbContext = _store.DbContext;
+            // Get the dead letter messages to replay
+            var deadLetterMessages = await dbContext
+                .Set<DeadLetterMessage>()
+                .Where(x => x.Replayable)
+                .ToListAsync();
+
+            if (deadLetterMessages.Count == 0)
+                return;
+
+            await using var transaction = await dbContext.Database.BeginTransactionAsync();
+            try
+            {
+                // Convert dead letter messages back to incoming messages
+                foreach (var dlm in deadLetterMessages)
+                {
+                    var incomingMessage = new IncomingMessage(dlm);
+                    dbContext.Add(incomingMessage);
+                    dbContext.Remove(dlm);
+                }
+
+                await dbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error replaying dead letter messages");
         }
     }
 

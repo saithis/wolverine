@@ -1,9 +1,8 @@
-﻿* Re-Check EfCoreMessageStore.DeadLetters
-* Re-Check EfCoreMessageStore.Inbox
+﻿* Re-Check EfCoreMessageStore.Inbox
 * Re-Check EfCoreMessageStore.NodeAgents
 * Re-Check EfCoreMessageStore.Outbox
 * Re-Check EfCoreMessageStore
-* Re-Check EfCoreDurabilityAgent
+* Make EfCoreDurabilityAgent behave the same as sql server implementation counterpart
 * Build wolverine extension for registering efcore persistence like sql server persistence does
 * Finish model TODOs like CommandQueuesEnabled and AddTenantLookupTable, etc.
 * Multitenancy

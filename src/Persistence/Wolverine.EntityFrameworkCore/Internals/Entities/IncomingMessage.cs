@@ -1,4 +1,5 @@
 using Wolverine.Runtime.Serialization;
+using Wolverine.Transports;
 
 namespace Wolverine.EntityFrameworkCore.Internals;
 
@@ -18,6 +19,18 @@ public class IncomingMessage
         Body = EnvelopeSerializer.Serialize(envelope);
         MessageType = envelope.MessageType!;
         ReceivedAt = envelope.Destination?.ToString();
+    }
+
+    public IncomingMessage(DeadLetterMessage dlm)
+    {
+        Id = dlm.Id;
+        Body = dlm.Body;
+        Status = nameof(EnvelopeStatus.Incoming);
+        OwnerId = TransportConstants.AnyNode;
+        ExecutionTime = null;
+        Attempts = 0;
+        MessageType = dlm.MessageType;
+        ReceivedAt = dlm.ReceivedAt;
     }
 
     public Guid Id { get; set; }
