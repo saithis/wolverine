@@ -29,4 +29,23 @@ public class IncomingMessage
     public string MessageType { get; set; } = string.Empty;
     public string? ReceivedAt { get; set; }
     public DateTimeOffset? KeepUntil { get; set; }
+
+    public Envelope ToEnvelope()
+    {
+        
+        var envelope = EnvelopeSerializer.Deserialize(Body);
+        envelope.Id = Id;
+        envelope.Status = Enum.Parse<EnvelopeStatus>(Status);
+        envelope.OwnerId = OwnerId;
+        envelope.ScheduledTime = ExecutionTime;
+        envelope.Attempts = Attempts;
+        envelope.MessageType = MessageType;
+        envelope.ScheduledTime = ExecutionTime;
+        if (ReceivedAt != null)
+        {
+            envelope.Destination = new Uri(ReceivedAt);
+        }
+
+        return envelope;
+    }
 }

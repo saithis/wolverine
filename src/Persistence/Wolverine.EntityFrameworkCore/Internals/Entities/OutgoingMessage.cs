@@ -27,4 +27,16 @@ public class OutgoingMessage
     public byte[] Body { get; set; } = [];
     public int Attempts { get; set; }
     public string MessageType { get; set; } = string.Empty;
+
+    public Envelope ToEnvelope()
+    {
+        var envelope = EnvelopeSerializer.Deserialize(Body);
+        envelope.Id = Id;
+        envelope.OwnerId = OwnerId;
+        envelope.DeliverBy = DeliverBy;
+        envelope.Attempts = Attempts;
+        envelope.Destination = new Uri(Destination);
+        envelope.MessageType = MessageType!;
+        return envelope;
+    }
 }

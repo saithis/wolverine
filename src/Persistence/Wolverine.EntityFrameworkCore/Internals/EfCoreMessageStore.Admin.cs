@@ -12,10 +12,27 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
 
     public async Task ClearAllAsync()
     {
-        // Clear all message tables
-        await _dbContext.Set<IncomingMessage>().ExecuteDeleteAsync();
-        await _dbContext.Set<OutgoingMessage>().ExecuteDeleteAsync();
-        await _dbContext.Set<DeadLetterMessage>().ExecuteDeleteAsync();
+        try
+        {
+            await using var tx = await _dbContext.Database.BeginTransactionAsync();
+            
+            await _dbContext.Set<IncomingMessage>().ExecuteDeleteAsync();
+            await _dbContext.Set<OutgoingMessage>().ExecuteDeleteAsync();
+            await _dbContext.Set<DeadLetterMessage>().ExecuteDeleteAsync();
+            
+            if (Settings.Role == MessageStoreRole.Main)
+            {
+                await _dbContext.Set<AgentRestrictionEntity>().ExecuteDeleteAsync();
+                await _dbContext.Set<NodeRecordEntity>().ExecuteDeleteAsync();
+            }
+            
+            await tx.CommitAsync();
+        }
+        catch (Exception e)
+        {
+            throw new InvalidOperationException(
+                "Failure trying to execute the statements to clear envelope storage", e);
+        }
     }
 
     public Task RebuildAsync()
@@ -37,15 +54,16 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
 
         foreach (var statusCount in incomingCounts)
         {
-            switch (statusCount.Status)
+            var status = Enum.Parse<EnvelopeStatus>(statusCount.Status);
+            switch (status)
             {
-                case nameof(EnvelopeStatus.Incoming):
+                case EnvelopeStatus.Incoming:
                     counts.Incoming = statusCount.Count;
                     break;
-                case nameof(EnvelopeStatus.Scheduled):
+                case EnvelopeStatus.Scheduled:
                     counts.Scheduled = statusCount.Count;
                     break;
-                case nameof(EnvelopeStatus.Handled):
+                case EnvelopeStatus.Handled:
                     counts.Handled = statusCount.Count;
                     break;
             }
@@ -63,35 +81,13 @@ public partial class EfCoreMessageStore<TDbContext> : IMessageStoreAdmin
     public async Task<IReadOnlyList<Envelope>> AllIncomingAsync()
     {
         var incomingMessages = await _dbContext.Set<IncomingMessage>().ToListAsync();
-
-        return incomingMessages.Select(im =>
-        {
-            var envelope = EnvelopeSerializer.Deserialize(im.Body);
-            envelope.Status = Enum.Parse<EnvelopeStatus>(im.Status);
-            envelope.OwnerId = im.OwnerId;
-            envelope.ScheduledTime = im.ExecutionTime;
-            envelope.Attempts = im.Attempts;
-            if (im.ReceivedAt != null)
-            {
-                envelope.Destination = new Uri(im.ReceivedAt);
-            }
-            return envelope;
-        }).ToList();
+        return incomingMessages.Select(im => im.ToEnvelope()).ToList();
     }
 
     public async Task<IReadOnlyList<Envelope>> AllOutgoingAsync()
     {
         var outgoingMessages = await _dbContext.Set<OutgoingMessage>().ToListAsync();
-
-        return outgoingMessages.Select(om =>
-        {
-            var envelope = EnvelopeSerializer.Deserialize(om.Body);
-            envelope.OwnerId = om.OwnerId;
-            envelope.DeliverBy = om.DeliverBy;
-            envelope.Attempts = om.Attempts;
-            envelope.Destination = new Uri(om.Destination);
-            return envelope;
-        }).ToList();
+        return outgoingMessages.Select(om => om.ToEnvelope()).ToList();
     }
 
     public async Task ReleaseAllOwnershipAsync()
