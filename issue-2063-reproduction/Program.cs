@@ -92,7 +92,7 @@ app.MapGet("/efcore-without-interceptor", async (AppDbContext dbContext) =>
         Data = "Hello world",
         SkipInterceptorEvent = true
     };
-    entity.Events.Add(new SomeEvent
+    entity.Events.Add(new SomeEvent // usually this would happen in a domain method, but for the reproduction I just put it here
     {
         EventData = "Event from the endpoint, saved via efcore"
     });
@@ -127,7 +127,7 @@ app.MapGet("/outbox-without-interceptor", async (IDbContextOutbox<AppDbContext> 
         Data = "Hello world",
         SkipInterceptorEvent = true
     };
-    entity.Events.Add(new SomeEvent
+    entity.Events.Add(new SomeEvent // usually this would happen in a domain method, but for the reproduction I just put it here
     {
         EventData = "Event from the endpoint, saved via outbox"
     });
