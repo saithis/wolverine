@@ -1,0 +1,11 @@
+
+### This should create a DB entry. 
+### With EnableRetryOnFailure it will throw.
+### Without EnableRetryOnFailure it just doesn't create it.
+http://localhost:5141/
+
+### With this you can check if the DB entry is there
+http://localhost:5141/list
+
+### Remove the first entry
+http://localhost:5141/remove

@@ -319,6 +319,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wolverine.DataAnnotationsVa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OtelWebApiWolverineMarten", "src\Testing\OpenTelemetry\OtelWebApiWolverineMarten\OtelWebApiWolverineMarten.csproj", "{AC643465-CD1E-4E9E-9860-DDAAF956A3DC}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WolverineBugs", "issue-2063-reproduction\WolverineBugs.csproj", "{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1793,6 +1795,18 @@ Global
 		{AC643465-CD1E-4E9E-9860-DDAAF956A3DC}.Release|x64.Build.0 = Release|Any CPU
 		{AC643465-CD1E-4E9E-9860-DDAAF956A3DC}.Release|x86.ActiveCfg = Release|Any CPU
 		{AC643465-CD1E-4E9E-9860-DDAAF956A3DC}.Release|x86.Build.0 = Release|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Debug|x64.Build.0 = Debug|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Debug|x86.Build.0 = Debug|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Release|x64.ActiveCfg = Release|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Release|x64.Build.0 = Release|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Release|x86.ActiveCfg = Release|Any CPU
+		{67E5A6EC-3D1C-4C19-88E9-6A21F975989E}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
