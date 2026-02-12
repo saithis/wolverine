@@ -163,6 +163,14 @@ public static class WolverineEntityCoreExtensions
         {
             configure(s, b);
             b.ReplaceService<IModelCustomizer, WolverineModelCustomizer>();
+            
+            // Add SaveChanges interceptor for domain event scraping when entity-based scrapers are registered
+            var registrations = s.GetServices<SaveChangesScraperRegistration>().ToArray();
+            if (registrations.Length > 0)
+            {
+                var scrapers = registrations.Select(r => r.Scraper).ToArray();
+                b.AddInterceptors(new WolverineSaveChangesInterceptor(scrapers, s));
+            }
         }, ServiceLifetime.Scoped, ServiceLifetime.Singleton);
 
         services.TryAddSingleton<IWolverineExtension, EntityFrameworkCoreBackedPersistence>();
@@ -313,6 +321,7 @@ public static class WolverineEntityCoreExtensions
     {
         var scraper = new DomainEventScraper<TEntityType, object>(source);
         options.Services.AddSingleton<IDomainEventScraper>(scraper);
+        options.Services.AddSingleton(new SaveChangesScraperRegistration(scraper));
         return options;
     }
     
@@ -329,6 +338,7 @@ public static class WolverineEntityCoreExtensions
     {
         var scraper = new DomainEventScraper<TEntityType, TDomainEvent>(source);
         options.Services.AddSingleton<IDomainEventScraper>(scraper);
+        options.Services.AddSingleton(new SaveChangesScraperRegistration(scraper));
         return options;
     }
 }
