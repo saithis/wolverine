@@ -2,6 +2,7 @@ using JasperFx.CodeGeneration;
 using JasperFx.CodeGeneration.Frames;
 using JasperFx.CodeGeneration.Model;
 using JasperFx.Core.Reflection;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore.Internals;
 using Wolverine.Persistence;
 using Wolverine.Runtime;
@@ -39,6 +40,7 @@ internal class EnrollDbContextInTransaction : AsyncFrame
         writer.WriteComment("Start the actual database transaction if one does not already exist");
         writer.Write($"BLOCK:if ({_dbContext.Usage}.Database.CurrentTransaction == null)");
         writer.Write($"await {_dbContext.Usage}.Database.BeginTransactionAsync({_cancellation.Usage}).ConfigureAwait(false);");
+        writer.Write($"{typeof(WolverineTransactionTracker).FullNameInCode()}.Track({_dbContext.Usage});");
         writer.FinishBlock();
         writer.Write("BLOCK:try");
 

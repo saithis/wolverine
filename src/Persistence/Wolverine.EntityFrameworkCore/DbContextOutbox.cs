@@ -31,6 +31,8 @@ public class DbContextOutbox<T> : MessageContext, IDbContextOutbox<T> where T : 
             await DbContext.Database.CommitTransactionAsync(token).ConfigureAwait(false);
         }
 
+        WolverineTransactionTracker.Remove(DbContext);
+
         await FlushOutgoingMessagesAsync();
     }
 }
@@ -71,6 +73,8 @@ public class DbContextOutbox : MessageContext, IDbContextOutbox
         {
             await ActiveContext.Database.CommitTransactionAsync(token).ConfigureAwait(false);
         }
+
+        WolverineTransactionTracker.Remove(ActiveContext);
 
         await FlushOutgoingMessagesAsync();
     }

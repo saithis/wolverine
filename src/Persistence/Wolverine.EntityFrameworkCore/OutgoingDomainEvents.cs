@@ -1,3 +1,4 @@
+using System.Collections;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.Runtime;
 
@@ -39,14 +40,26 @@ public class DomainEventScraper<T, TEvent> : IDomainEventScraper
 
     public async Task ScrapeEvents(DbContext dbContext, MessageContext bus)
     {
-        // Materialize to a list to avoid "Collection was modified" errors when
-        // PublishAsync modifies the change tracker (e.g., by starting a transaction)
-        var eventMessages = dbContext.ChangeTracker.Entries().Select(x => x.Entity)
-            .OfType<T>().SelectMany(_source).ToList();
+        // Materialize entities and events up front to avoid "Collection was modified" errors
+        // when PublishAsync modifies the change tracker (e.g., by starting a transaction)
+        var entities = dbContext.ChangeTracker.Entries().Select(x => x.Entity).OfType<T>().ToList();
+        var eventMessages = entities.SelectMany(_source).ToList();
 
         foreach (var eventMessage in eventMessages)
         {
             await bus.PublishAsync(eventMessage);
+        }
+
+        // Clear event collections to prevent double-scraping when both the outbox and
+        // the SaveChanges interceptor are active (e.g., when a user-started transaction
+        // prevents the interceptor from detecting that the outbox already scraped).
+        // This only works when the source returns a mutable collection (e.g., List<T>).
+        foreach (var entity in entities)
+        {
+            if (_source(entity) is IList list)
+            {
+                list.Clear();
+            }
         }
     }
 }

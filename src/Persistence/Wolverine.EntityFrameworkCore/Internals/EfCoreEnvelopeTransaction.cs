@@ -3,6 +3,7 @@ using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Weasel.Core;
+using Wolverine.EntityFrameworkCore;
 using Wolverine.Persistence.Durability;
 using Wolverine.RDBMS;
 using Wolverine.Runtime;
@@ -45,6 +46,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         if (DbContext.Database.CurrentTransaction == null)
         {
             await DbContext.Database.BeginTransactionAsync();
+            WolverineTransactionTracker.Track(DbContext);
         }
 
         if (DbContext.IsWolverineEnabled())
@@ -75,6 +77,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         if (DbContext.Database.CurrentTransaction == null)
         {
             await DbContext.Database.BeginTransactionAsync();
+            WolverineTransactionTracker.Track(DbContext);
         }
 
         if (DbContext.IsWolverineEnabled())
@@ -102,6 +105,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         if (DbContext.Database.CurrentTransaction == null)
         {
             await DbContext.Database.BeginTransactionAsync();
+            WolverineTransactionTracker.Track(DbContext);
         }
 
         if (DbContext.IsWolverineEnabled())
@@ -125,6 +129,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
 
     public ValueTask RollbackAsync()
     {
+        WolverineTransactionTracker.Remove(DbContext);
+        
         if (DbContext.Database.CurrentTransaction != null)
         {
             return new ValueTask(DbContext.Database.CurrentTransaction.RollbackAsync());
@@ -141,6 +147,7 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         if (DbContext.Database.CurrentTransaction == null)
         {
             await DbContext.Database.BeginTransactionAsync(cancellation);
+            WolverineTransactionTracker.Track(DbContext);
         }
 
         try
@@ -210,6 +217,8 @@ public class EfCoreEnvelopeTransaction : IEnvelopeTransaction
         {
             await DbContext.Database.CurrentTransaction.CommitAsync(cancellation);
         }
+
+        WolverineTransactionTracker.Remove(DbContext);
 
         await _messaging.FlushOutgoingMessagesAsync();
     }
