@@ -39,8 +39,10 @@ public class DomainEventScraper<T, TEvent> : IDomainEventScraper
 
     public async Task ScrapeEvents(DbContext dbContext, MessageContext bus)
     {
+        // Materialize to a list to avoid "Collection was modified" errors when
+        // PublishAsync modifies the change tracker (e.g., by starting a transaction)
         var eventMessages = dbContext.ChangeTracker.Entries().Select(x => x.Entity)
-            .OfType<T>().SelectMany(_source);
+            .OfType<T>().SelectMany(_source).ToList();
 
         foreach (var eventMessage in eventMessages)
         {
