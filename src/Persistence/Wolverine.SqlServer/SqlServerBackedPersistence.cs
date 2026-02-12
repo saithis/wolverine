@@ -7,7 +7,9 @@ using JasperFx.MultiTenancy;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Weasel.Core;
 using Weasel.Core.Migrations;
+using Weasel.SqlServer;
 using Wolverine.Persistence.Durability;
 using Wolverine.Persistence.Sagas;
 using Wolverine.RDBMS;
@@ -112,10 +114,18 @@ public interface ISqlServerBackedPersistence
 internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBackedPersistence
 {
     private readonly WolverineOptions _options;
+    private readonly List<Action<SqlServerMessageStore>> _storeConfigurations = new();
 
     public SqlServerBackedPersistence(WolverineOptions options)
     {
         _options = options;
+    }
+
+    internal WolverineOptions Options => _options;
+
+    internal void AddStoreConfiguration(Action<SqlServerMessageStore> configuration)
+    {
+        _storeConfigurations.Add(configuration);
     }
 
     public string? ConnectionString { get; set; }
@@ -166,6 +176,8 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         options.CodeGeneration.Sources.Add(new DatabaseBackedPersistenceMarker());
         options.CodeGeneration.Sources.Add(new SagaStorageVariableSource());
 
+        options.Services.AddSingleton<Migrator, SqlServerMigrator>();
+        
         options.Services.AddSingleton<IMessageStore>(s => BuildMessageStore(s.GetRequiredService<IWolverineRuntime>()));
 
         options.Services.AddSingleton<IDatabaseSource, MessageDatabaseDiscovery>();
@@ -194,6 +206,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         {
             var defaultStore = new SqlServerMessageStore(settings, runtime.DurabilitySettings,
                 logger, sagaTables);
+            applyStoreConfigurations(defaultStore);
             
             ConnectionStringTenancy = new MasterTenantSource(defaultStore, runtime.Options);
             
@@ -205,6 +218,7 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
         {
             var defaultStore = new SqlServerMessageStore(settings, runtime.DurabilitySettings,
                 logger, sagaTables);
+            applyStoreConfigurations(defaultStore);
             
             return new MultiTenantedMessageStore(defaultStore, runtime,
                 new SqlServerTenantedMessageStore(runtime, this, sagaTables){DataSource = ConnectionStringTenancy});
@@ -212,8 +226,23 @@ internal class SqlServerBackedPersistence : IWolverineExtension, ISqlServerBacke
 
         settings.Role = Role;
         
-        return new SqlServerMessageStore(settings, runtime.DurabilitySettings,
+        var store = new SqlServerMessageStore(settings, runtime.DurabilitySettings,
             logger, sagaTables);
+        applyStoreConfigurations(store);
+        return store;
+    }
+
+    internal void ApplyStoreConfigurations(SqlServerMessageStore store)
+    {
+        applyStoreConfigurations(store);
+    }
+
+    private void applyStoreConfigurations(SqlServerMessageStore store)
+    {
+        foreach (var configuration in _storeConfigurations)
+        {
+            configuration(store);
+        }
     }
 
     private DatabaseSettings buildMainDatabaseSettings()

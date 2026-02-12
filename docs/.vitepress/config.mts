@@ -66,7 +66,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                         {text: 'Getting Started', link: '/introduction/getting-started'},
                         {text: 'Support Policy', link: '/introduction/support-policy'},
                         {text: 'Wolverine for MediatR Users', link: '/introduction/from-mediatr'},
-                        {text: 'Best Practices', link: '/introduction/best-practices'}, 
+                        {text: 'Best Practices', link: '/introduction/best-practices'},
+                        {text: 'Migrating to Wolverine', link: '/guide/migrating-to-wolverine'},
                     ]
                 },
                 {
@@ -113,6 +114,7 @@ const config: UserConfig<DefaultTheme.Config> = {
                             text: 'Message Handlers', link: '/guide/handlers/', items: [
                                 {text: 'Discovery', link: '/guide/handlers/discovery'},
                                 {text: 'Error Handling', link: '/guide/handlers/error-handling'},
+                                {text: 'Rate Limiting', link: '/guide/handlers/rate-limiting'},
                                 {text: 'Return Values', link: '/guide/handlers/return-values'},
                                 {text: 'Cascading Messages', link: '/guide/handlers/cascading'},
                                 {text: 'Side Effects', link: '/guide/handlers/side-effects'},
@@ -171,7 +173,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                         {text: 'Configuring Queues', link:'/guide/messaging/transports/sqs/queues'},
                                         {text: 'Conventional Routing', link:'/guide/messaging/transports/sqs/conventional-routing'},
                                         {text: 'Interoperability', link:'/guide/messaging/transports/sqs/interoperability'},
-                                        {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'}
+                                        {text: 'MessageAttributes', link:'/guide/messaging/transports/sqs/message-attributes'},
+                                        {text: 'FIFO Queues', link:'/guide/messaging/transports/sqs/fifo-queues'}
                                     ]},
                                 {text: 'Amazon SNS', link: '/guide/messaging/transports/sns'},
                                 {text: 'TCP', link: '/guide/messaging/transports/tcp'},
@@ -185,6 +188,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                                 {text: 'Apache Pulsar', link: '/guide/messaging/transports/pulsar'},
                                 {text: 'Sql Server', link: '/guide/messaging/transports/sqlserver'},
                                 {text: 'PostgreSQL', link: '/guide/messaging/transports/postgresql'},
+                                {text: 'MySQL', link: '/guide/messaging/transports/mysql'},
+                                {text: 'SQLite', link: '/guide/messaging/transports/sqlite'},
                                 {text: 'MQTT', link: '/guide/messaging/transports/mqtt'},
                                 {text: 'NATS', link: '/guide/messaging/transports/nats'},
                                 {text: 'Kafka', link: '/guide/messaging/transports/kafka'},
@@ -253,6 +258,8 @@ const config: UserConfig<DefaultTheme.Config> = {
                             ]},
                         {text: 'Sql Server Integration', link: '/guide/durability/sqlserver'},
                         {text: 'PostgreSQL Integration', link: '/guide/durability/postgresql'},
+                        {text: 'MySQL Integration', link: '/guide/durability/mysql'},
+                        {text: 'SQLite Integration', link: '/guide/durability/sqlite'},
                         {text: 'RavenDb Integration', link: '/guide/durability/ravendb'},
                         {text: 'Entity Framework Core Integration', collapsed: false, link: '/guide/durability/efcore', items: [
                                 {text: 'Transactional Middleware', link: '/guide/durability/efcore/transactional-middleware'},

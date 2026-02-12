@@ -18,8 +18,6 @@ In its most simplistic usage you enable the MQTT transport through calling the `
 and defining which MQTT topics you want to publish or subscribe to with the normal [subscriber rules](/guide/messaging/subscriptions) as 
 shown in this sample:
 
-<!-- snippet: sample_using_mqtt -->
-<a id='snippet-sample_using_mqtt'></a>
 ```cs
 var builder = Host.CreateApplicationBuilder();
 
@@ -54,8 +52,6 @@ builder.UseWolverine(opts =>
 using var host = builder.Build();
 await host.StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/Samples.cs#L14-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_using_mqtt' title='Start of snippet'>anchor</a></sup>
-<!-- endSnippet -->
 
 ::: info
 The MQTT transport *at this time* only supports endpoints that are either `Buffered` or `Durable`. 
@@ -208,10 +204,20 @@ _receiver = await Host.CreateDefaultBuilder()
     .UseWolverine(opts =>
     {
         opts.UseMqttWithLocalBroker(port);
+        opts.ListenToMqttTopic("incoming/one", "group1").RetainMessages();
+    }).StartAsync();
+```
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_emqx_shared_group_topic.cs#L42-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter' title='Start of snippet'>anchor</a></sup>
+<a id='snippet-sample_listen_to_mqtt_topic_filter-1'></a>
+```cs
+_receiver = await Host.CreateDefaultBuilder()
+    .UseWolverine(opts =>
+    {
+        opts.UseMqttWithLocalBroker(port);
         opts.ListenToMqttTopic("incoming/#").RetainMessages();
     }).StartAsync();
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_topic_wildcards.cs#L41-L50' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/listen_with_topic_wildcards.cs#L42-L51' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_listen_to_mqtt_topic_filter-1' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
 
 In the case of receiving any message that matches the topic filter *according to the [MQTT topic filter rules](https://cedalo.com/blog/mqtt-topics-and-mqtt-wildcards-explained/)*, that message
@@ -354,8 +360,33 @@ public static ClearMqttTopic Handle(TriggerZero message)
     return new ClearMqttTopic("red");
 }
 ```
-<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L84-L98' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
+<sup><a href='https://github.com/JasperFx/wolverine/blob/main/src/Transports/MQTT/Wolverine.MQTT.Tests/ack_smoke_tests.cs#L87-L101' title='Snippet source file'>snippet source</a> | <a href='#snippet-sample_ack_mqtt_topic' title='Start of snippet'>anchor</a></sup>
 <!-- endSnippet -->
+
+## Authentication via OAuth2
+
+Wolverine supports MQTT v5 OAuth2/JWT authentication by supplying a token callback and refresh interval when you configure
+the transport. The callback returns raw token bytes (use UTF-8 encoding if your token is a string). When configured,
+Wolverine sets the MQTT authentication method to `OAUTH2-JWT`, sends the initial token with the connect packet, and
+re-authenticates on the configured refresh period while the client is connected.
+
+::: info
+You don't need to configure `AuthenticationMethod` and `AuthenticationData` by yourself. These are overriden when the `MqttJwtAuthenticationOptions` parameter is set.
+:::
+
+Minimal configuration example:
+```cs
+var builder = Host.CreateApplicationBuilder();
+
+builder.UseWolverine(opts =>
+{
+    opts.UseMqtt(
+        mqtt => mqtt.WithClientOptions(client => client.WithTcpServer("broker")),
+        new MqttJwtAuthenticationOptions(
+            async () => Encoding.UTF8.GetBytes(await GetJwtTokenAsync()),
+            30.Minutes()));
+});
+```
 
 ## Interoperability
 
