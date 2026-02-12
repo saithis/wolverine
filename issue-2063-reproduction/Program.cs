@@ -18,9 +18,11 @@ builder.Services.AddDbContext<AppDbContext>(
             npgsqlOptions =>
             {
                 npgsqlOptions.MigrationsHistoryTable("__EFMigrationsHistory", AppDbContext.SchemaName);
-                npgsqlOptions.EnableRetryOnFailure(); // BUG1: Wolverine makes this unusable
+                npgsqlOptions.EnableRetryOnFailure();
             }
         );
+
+        options.AddInterceptors(new MyInterceptor());
     },
     optionsLifetime: ServiceLifetime.Singleton
 );
@@ -67,7 +69,7 @@ var app = builder.Build();
 
 await MigrateAsync(app.Services);
 
-app.MapGet("/", async (IDbContextOutbox<AppDbContext> dbContext) =>
+app.MapGet("/", async (AppDbContext dbContext) =>
 {
     var data = $"hello world {Guid.NewGuid()}";
 
@@ -81,24 +83,11 @@ app.MapGet("/", async (IDbContextOutbox<AppDbContext> dbContext) =>
     });
     
     // BUG2: This will not be saved in the db, even though the endpoint returns success
-    dbContext.DbContext.MyDbEntities.Add(entity);
-    
-    await dbContext.SaveChangesAndFlushMessagesAsync();
+    dbContext.MyDbEntities.Add(entity);
+
+    await dbContext.SaveChangesAsync();
     
     return "Data saved and event published!";
-});
-
-app.MapGet("/remove", async (IDbContextOutbox<AppDbContext> dbContext) =>
-{
-    var entity = await dbContext.DbContext.MyDbEntities.FirstOrDefaultAsync();
-    entity.Publish(new SomeEvent
-    {
-        EventData = $"removed {DateTimeOffset.UtcNow.ToString()}"
-    });
-    dbContext.DbContext.MyDbEntities.Remove(entity);
-    
-    await dbContext.SaveChangesAndFlushMessagesAsync();
-    return entity;
 });
 
 app.MapGet("/list", async (AppDbContext dbContext) =>
