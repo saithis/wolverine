@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using Microsoft.EntityFrameworkCore;
 using Wolverine.EntityFrameworkCore;
 
@@ -23,6 +24,9 @@ public class MyDbEntity : Entity
 {
     public int Id { get; set; }
     public required string Data { get; set; }
+    
+    [NotMapped]
+    public bool SkipInterceptorEvent { get; set; }
 }
 public abstract class Entity
 {

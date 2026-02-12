@@ -2,6 +2,7 @@ using JasperFx.Resources;
 using Microsoft.EntityFrameworkCore;
 using Wolverine;
 using Wolverine.EntityFrameworkCore;
+using Wolverine.Persistence;
 using Wolverine.Postgresql;
 using Wolverine.RabbitMQ;
 using WolverineBugs;
@@ -34,7 +35,7 @@ builder.Services.AddWolverine(opts =>
     opts.PersistMessagesWithPostgresql(settings.ConnectionStrings.Database, "wolverine");
     opts.Durability.MessageStorageSchemaName = "wolverine";
     opts.Policies.AutoApplyTransactions();
-    opts.UseEntityFrameworkCoreTransactions();
+    opts.UseEntityFrameworkCoreTransactions(TransactionMiddlewareMode.Lightweight);
 
     opts.Policies.UseDurableLocalQueues();
     opts.Policies.UseDurableOutboxOnAllSendingEndpoints();
@@ -69,25 +70,74 @@ var app = builder.Build();
 
 await MigrateAsync(app.Services);
 
-app.MapGet("/", async (AppDbContext dbContext) =>
+app.MapGet("/efcore-with-interceptor", async (AppDbContext dbContext) =>
 {
-    var data = $"hello world {Guid.NewGuid()}";
-
     var entity = new MyDbEntity
     {
-        Data = data
+        Data = "Event will be added in interceptor + efcore save",
+    };
+    
+    dbContext.MyDbEntities.Add(entity);
+
+    // Problem: Event will not be published (Wolverine completely unaware of events)
+    await dbContext.SaveChangesAsync();
+    
+    return $"ID: {entity.Id}";
+});
+
+app.MapGet("/efcore-without-interceptor", async (AppDbContext dbContext) =>
+{
+    var entity = new MyDbEntity
+    {
+        Data = "Hello world",
+        SkipInterceptorEvent = true
     };
     entity.Events.Add(new SomeEvent
     {
-        EventData = data
+        EventData = "Event from the endpoint, saved via efcore"
     });
     
-    // BUG2: This will not be saved in the db, even though the endpoint returns success
     dbContext.MyDbEntities.Add(entity);
 
+    // Problem: Event will not be published (Wolverine completely unaware of events)
     await dbContext.SaveChangesAsync();
     
-    return "Data saved and event published!";
+    return $"ID: {entity.Id}";
+});
+
+app.MapGet("/outbox-with-interceptor", async (IDbContextOutbox<AppDbContext> dbContext) =>
+{
+    var entity = new MyDbEntity
+    {
+        Data = "Event will be added in interceptor + outbox save",
+    };
+    
+    dbContext.DbContext.MyDbEntities.Add(entity);
+
+    // Problem: Event will not be published (interceptor to late for DomainEventScraper?!?)
+    await dbContext.SaveChangesAndFlushMessagesAsync();
+    
+    return $"ID: {entity.Id}";
+});
+
+app.MapGet("/outbox-without-interceptor", async (IDbContextOutbox<AppDbContext> dbContext) =>
+{
+    var entity = new MyDbEntity
+    {
+        Data = "Hello world",
+        SkipInterceptorEvent = true
+    };
+    entity.Events.Add(new SomeEvent
+    {
+        EventData = "Event from the endpoint, saved via outbox"
+    });
+    
+    dbContext.DbContext.MyDbEntities.Add(entity);
+
+    // Problem: Event will not be published and endpoints errors out (System.InvalidOperationException: Collection was modified; enumeration operation may not execute.)
+    await dbContext.SaveChangesAndFlushMessagesAsync();
+    
+    return $"ID: {entity.Id}";
 });
 
 app.MapGet("/list", async (AppDbContext dbContext) =>

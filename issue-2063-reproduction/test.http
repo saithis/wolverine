@@ -1,11 +1,18 @@
+# There is an efcore intercceptor that publishes events
 
-### This should create a DB entry. 
-### With EnableRetryOnFailure it will throw.
-### Without EnableRetryOnFailure it just doesn't create it.
-http://localhost:5141/
+### Adds a DomainEvent via efcore interceptor and uses dbContext.SaveChangesAsync to save. 
+http://localhost:5141/efcore-with-interceptor
 
-### With this you can check if the DB entry is there
+### Adds a DomainEvent in the endpoint and uses dbContext.SaveChangesAsync to save. 
+http://localhost:5141/efcore-without-interceptor
+
+### Adds a DomainEvent via efcore interceptor and uses outbox to save. 
+http://localhost:5141/outbox-with-interceptor
+
+### Adds a DomainEvent in the endpoint and uses outbox to save. 
+http://localhost:5141/outbox-without-interceptor
+
+# None of the 4 above work :(
+
+### just for fun: With this you can check if the DB entry is there
 http://localhost:5141/list
-
-### Remove the first entry
-http://localhost:5141/remove
